@@ -44,7 +44,7 @@ The model card states that the model is not for medical, legal or financial advi
 
 #### 2.2 Model selection
 
-The project originally targeted the HelaAI SinhalaLM models (32.85M parameters). Their architecture was converted to Llama with exact parity, but the answers of both the base and the instruct model on the golden prompts did not reach a satisfactory question-answering quality ([model-outputs.md](model-outputs.md) at the time of the decision, [repository-audit.md](findings/repository-audit.md)).
+The project originally targeted the HelaAI SinhalaLM models (32.85M parameters). Their architecture was converted to Llama with exact parity, but the answers of both the base and the instruct model on the golden prompts did not reach a satisfactory question-answering quality ([repository-audit.md](findings/repository-audit.md), [model-comparison.md](model-comparison.md)).
 
 We then compared the HelaAI instruct model with SinhalaLLM-1.7B, Qwen3.5-2B and Qwen3.5-0.8B on ten Sinhala questions ([model-comparison.md](model-comparison.md)). Table 1 summarizes the comparison.
 
@@ -260,7 +260,7 @@ SinhalaLLM-1.7B is released under Apache-2.0, so the converted ONNX files can be
 We load the model with `transformers` 5.19.0, the version recorded in its `config.json`, and store golden outputs:
 
 - logits for a fixed set of questions in the ChatML format;
-- 40-token greedy generations for the same questions;
+- 64-token greedy generations for the same questions;
 - perplexity on a held-out Sinhala set. We propose the FLORES+ `sin_Sinh` devtest split (1,012 sentences) for this purpose. Since FLORES+ is gated on Hugging Face, this reference perplexity is computed together with the quality evaluation in Section 5.6.
 
 Since the reference and the export toolchain need different `transformers` versions, the Python environment is split into a reference environment and an export environment.

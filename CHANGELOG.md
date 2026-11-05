@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/sinhalallm-reference — Reference outputs and gate 1 for SinhalaLLM-1.7B
+
+#### Added
+
+- `convert/sinhalallm.py`, which downloads SinhalaLLM-1.7B at a pinned revision into the model store and verifies the SHA-256 hash of every file. A marker next to each verified file avoids hashing the 3.5 GB weights again until the file changes.
+- `convert/make_golden.py` for SinhalaLLM-1.7B, which runs with `transformers` 5.19.0 and writes the prompt token IDs, prompt logits and 64-token greedy answers for ten golden questions, the logits of a random 1,024-token input and a regenerated `docs/model-outputs.md`.
+- `convert/parity_check.py` for SinhalaLLM-1.7B (gate 1), which translates the configuration for `transformers` 4.57.6, compares logits and greedy answers with the golden outputs and runs the untranslated configuration as a negative control. The translated configuration is written to the model store for the export in Phase 3.
+- `docs/findings/config-translation.md` with the results of gate 1.
+- `make verify`, which reruns the golden generation and gate 1 from scratch.
+
+#### Changed
+
+- The Python environment is split into an export group (`transformers` 4.57.6) and a reference group (`transformers` 5.19.0), declared as conflicting `uv` dependency groups. The reference group runs in `.venv-reference`.
+- `make ci` now rebuilds the golden outputs and the gate 1 report only when their inputs change, since each takes about three minutes on a CPU for a 1.74B model. `.DELETE_ON_ERROR` removes a failed report, so that a failed gate is never treated as up to date.
+- `golden/prompts.json` now holds ten questions: the four golden questions and the six questions from the model comparison.
+
+#### Removed
+
+- The HelaAI pipeline: `convert/helaai.py`, the SinhalaGPT-to-Llama conversion and its golden outputs. The HelaAI findings stay in `docs/findings/` as a record of the previous model.
+
+#### Results
+
+- Gate 1 passes: a maximum absolute logit difference of 0.0 on all ten questions and the random input, no greedy mismatches and 1,740,474,368 parameters. The negative control differs by up to 11.66, and `make check-golden` reproduced the committed golden outputs exactly.
+- With the untranslated RoPE base, short answers stayed plausible, while the longer answer to Q3 fell into repetition, so the error would most likely not be noticed by reading a few answers.
+- The reference generation and gate 1 each peaked at about 8.9 GB of memory.
+
 ### docs/sinhalallm-proposal — Switch to SinhalaLLM-1.7B
 
 #### Decisions
