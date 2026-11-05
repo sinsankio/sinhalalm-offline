@@ -82,3 +82,11 @@ def write_browser_tokenizer(target: Path) -> None:
     (target / "tokenizer.json").write_bytes((model_dir() / "tokenizer.json").read_bytes())
     config = json.dumps(browser_tokenizer_config(), ensure_ascii=False, indent=2) + "\n"
     (target / "tokenizer_config.json").write_text(config, encoding="utf-8")
+
+
+def random_ids(spec: dict) -> list[int]:
+    import torch
+
+    generator = torch.Generator().manual_seed(spec["seed"])
+    shape = (spec["length"],)
+    return torch.randint(spec["low"], spec["high"], shape, generator=generator).tolist()
