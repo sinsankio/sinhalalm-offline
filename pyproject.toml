@@ -15,6 +15,7 @@ export = [
     "transformers==4.57.6",
 ]
 reference = [
+    "pyarrow==26.0.0",
     "safetensors==0.8.0",
     "transformers==5.19.0",
 ]
