@@ -11,7 +11,7 @@ In this document, we report the result of that reproduction. Every finding was c
 | `HelaAI/SinhalaLM-V.0.0.1` (base) | `5f9c6d73e5ee3ec9e3f9cc2d7c03f95f144a2d8c` |
 | `HelaAI/SinhalaLM-V.0.0.1-it` (instruct) | `f3b1f5d5b27786688dce99ba11ceac4220150e00` |
 
-We inspected the safetensors headers, `config.json`, `tokenizer.json`, `bpe_vocabulary.json`, `modeling_sinhalalm.py`, the model cards, the training summaries and the validation loss logs. Model behavior was observed through the golden reference outputs in `golden/reference.json`, which contain 40-token greedy generations for eight prompts, each run through both models. All outputs are listed in [model-outputs.md](../model-outputs.md).
+We inspected the safetensors headers, `config.json`, `tokenizer.json`, `bpe_vocabulary.json`, `modeling_sinhalalm.py`, the model cards, the training summaries and the validation loss logs. Model behavior was observed through the golden reference outputs in `golden/reference.json`, which contain 40-token greedy generations for eight prompts, each run through both models. These outputs were listed in `docs/model-outputs.md` until the switch to SinhalaLLM-1.7B, and the instruct answers to the four questions also appear in [model-comparison.md](../model-comparison.md).
 
 ### 2. Summary
 

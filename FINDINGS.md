@@ -8,6 +8,7 @@ This document summarizes the research and development findings of the project in
 |---|---|---|
 | [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
 | [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
+| [config-translation.md](docs/findings/config-translation.md) | Parity gate 1 for SinhalaLLM-1.7B | The translated configuration loads the model in `transformers` 4.57.6 identically to 5.19.0, while the untranslated one differs by up to 11.66 in the logits. |
 | [toolchain.md](docs/findings/toolchain.md) | Export, runtime, quantization and hosting constraints | The planned Llama export path works with current tools, but only with pinned versions, and q4 leaves the tied embedding and head in fp32. |
 | [repository-audit.md](docs/findings/repository-audit.md) | Audit of the two HelaAI repositories (previous model) | All nine original findings reproduce, F4 is corrected to two template `<UNK>` tokens, and three new findings are added. |
 | [llama-equivalence.md](docs/findings/llama-equivalence.md) | Parity gate 1 for the HelaAI models (previous model) | Both checkpoints convert to `LlamaForCausalLM` with a logit difference of exactly 0.0 and identical greedy output. |
@@ -25,6 +26,13 @@ This document summarizes the research and development findings of the project in
 - **S2 and S3: the ZWJ must be added to the input.** The tokenizer has no normalizer, ශ්රී ලංකාව ප්රධාන without the ZWJ becomes 6 fragments instead of 3 tokens, and the vocabulary contains the ZWJ only in `්‍ර` (611 tokens) and `්‍ය` (150 tokens).
 - **S4: the browser tokenizer matches the Python one.** transformers.js 4.3.2 produced identical token IDs on 210 Sinhala texts and edge cases, so no custom tokenizer port is needed.
 - **S5–S8: context, stop tokens, size and accuracy.** The application caps the context at 1,024 tokens, stops at both `<|im_end|>` and `<|endoftext|>`, ships only quantized variants of the 6.96 GB fp32 model, and labels answers as unverified.
+
+### Configuration translation (gate 1)
+
+- **The translated load is identical to the reference.** With the RoPE base translated to 130,000, `transformers` 4.57.6 matches 5.19.0 with a maximum absolute logit difference of 0.0 on ten golden questions and a random 1,024-token input, and all ten 64-token greedy generations are identical.
+- **The negative control fails as intended.** The untranslated RoPE base of 10,000 differs from the reference by up to 11.66 in the logits.
+- **The error is silent in short answers.** With the wrong RoPE base, the answer to Q2 is identical and Q1 differs by one word, while the longer answer to Q3 falls into repetition.
+- **The golden outputs are reproducible.** Regenerating them from scratch matched the committed files exactly.
 
 ### Toolchain check
 
