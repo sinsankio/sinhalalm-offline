@@ -1,0 +1,44 @@
+{
+  "seed": 0,
+  "sentence_chars": [
+    5,
+    300
+  ],
+  "tokenizers": "0.23.3",
+  "sources": [
+    {
+      "name": "pretraining",
+      "repo": "ChamaraVishwajithRajapaksha/sinhala-text-dataset",
+      "revision": "2a7cbe944d7f2c78e5ca6d2ec86008bf4f6cafe8",
+      "file": "data/train-00000-of-00001.parquet",
+      "count": 4000,
+      "candidates": 197838
+    },
+    {
+      "name": "qa",
+      "repo": "ChamaraVishwajithRajapaksha/sinhala-question-answer-pairs",
+      "revision": "bf34e2a78feb8dca237fb863b7161767fe64c331",
+      "file": "data/test-00000-of-00001.parquet",
+      "count": 3000,
+      "candidates": 12012
+    },
+    {
+      "name": "eli5",
+      "repo": "ihalage/sinhala-finetune-qa-eli5",
+      "revision": "c47977fd308de19862df293390717542889caf7c",
+      "file": "sinhala-finetune-qa-eli5.jsonl",
+      "count": 1000,
+      "candidates": 83949
+    },
+    {
+      "name": "wikipedia",
+      "repo": "wikimedia/wikipedia",
+      "revision": "b04c8d1ceb2f5cd4588862100d08de323dccfbaa",
+      "file": "20231101.si/train-00000-of-00001.parquet",
+      "count": 2000,
+      "candidates": 118657
+    }
+  ],
+  "total": 10000,
+  "corpus_sha256": "06a46cc9e439edf61070c1a77250c5d1229d1c32eed60ea9316f56270ffe6976"
+}

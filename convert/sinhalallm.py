@@ -68,3 +68,17 @@ def raw_config() -> dict:
 
 def load_golden() -> dict:
     return json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+
+
+def browser_tokenizer_config() -> dict:
+    directory = model_dir()
+    config = json.loads((directory / "tokenizer_config.json").read_text(encoding="utf-8"))
+    template = (directory / "chat_template.jinja").read_text(encoding="utf-8")
+    return config | {"chat_template": template}
+
+
+def write_browser_tokenizer(target: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "tokenizer.json").write_bytes((model_dir() / "tokenizer.json").read_bytes())
+    config = json.dumps(browser_tokenizer_config(), ensure_ascii=False, indent=2) + "\n"
+    (target / "tokenizer_config.json").write_text(config, encoding="utf-8")

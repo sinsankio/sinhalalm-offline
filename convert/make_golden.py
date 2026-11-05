@@ -1,10 +1,19 @@
 import argparse
+import hashlib
+import itertools
 import json
+import random
+import re
+import shutil
 import sys
+from pathlib import Path
 
 import numpy as np
+import pyarrow.parquet as pq
+import tokenizers
 import torch
 import transformers
+from huggingface_hub import hf_hub_download
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from sinhalallm import (
@@ -16,6 +25,7 @@ from sinhalallm import (
     STOP_IDS,
     model_dir,
     store_path,
+    write_browser_tokenizer,
 )
 
 OUTPUTS_DOC_PATH = ROOT / "docs" / "model-outputs.md"
@@ -25,6 +35,75 @@ RANDOM_SEQ_LEN = 1024
 RANDOM_STRIDE = 16
 RANDOM_SEED = 0
 FIRST_REGULAR_ID = 3
+
+GENERATED_DIR = ROOT / "golden" / "generated"
+CORPUS_PATH = GENERATED_DIR / "tokenizer_corpus.json"
+TOKENIZER_COPY_DIR = GENERATED_DIR / "tokenizer" / "sinhalallm"
+CASES_PATH = ROOT / "golden" / "tokenizer_cases.json"
+MANIFEST_PATH = ROOT / "golden" / "tokenizer_manifest.json"
+CORPUS_SEED = 0
+MIN_CHARS, MAX_CHARS = 5, 300
+SENTENCE_SPLIT = re.compile(r"(?<=[.?!])\s+|\n+")
+SINHALA = re.compile("[\u0d80-\u0dff]")
+
+CORPUS_SOURCES = (
+    {
+        "name": "pretraining",
+        "repo": "ChamaraVishwajithRajapaksha/sinhala-text-dataset",
+        "revision": "2a7cbe944d7f2c78e5ca6d2ec86008bf4f6cafe8",
+        "file": "data/train-00000-of-00001.parquet",
+        "columns": ["text"],
+        "max_rows": 200_000,
+        "count": 4000,
+    },
+    {
+        "name": "qa",
+        "repo": "ChamaraVishwajithRajapaksha/sinhala-question-answer-pairs",
+        "revision": "bf34e2a78feb8dca237fb863b7161767fe64c331",
+        "file": "data/test-00000-of-00001.parquet",
+        "columns": ["input", "target"],
+        "max_rows": None,
+        "count": 3000,
+    },
+    {
+        "name": "eli5",
+        "repo": "ihalage/sinhala-finetune-qa-eli5",
+        "revision": "c47977fd308de19862df293390717542889caf7c",
+        "file": "sinhala-finetune-qa-eli5.jsonl",
+        "columns": ["sinhala_question", "sinhala_answer"],
+        "max_rows": None,
+        "count": 1000,
+    },
+    {
+        "name": "wikipedia",
+        "repo": "wikimedia/wikipedia",
+        "revision": "b04c8d1ceb2f5cd4588862100d08de323dccfbaa",
+        "file": "20231101.si/train-00000-of-00001.parquet",
+        "columns": ["text"],
+        "max_rows": 3000,
+        "count": 2000,
+    },
+)
+
+EDGE_CASES = (
+    ("empty", ""),
+    ("zwj_conjuncts", "ශ්\u200dරී ලංකාව ප්\u200dරධාන"),
+    ("missing_zwj", "ශ්රී ලංකාව ප්රධාන"),
+    ("zwnj", "ක්\u200cෂ ක්\u200dෂ"),
+    ("leading_bom", "\ufeffකුමක්ද?"),
+    ("detached_punctuation", "කුමක්ද ?"),
+    ("whitespace_mix", "සිංහල\tභාෂාව\u00a0ලියන\u2028කෙනෙක්\u0085ද\x1cබව"),
+    ("repeated_spaces", "සිංහල    භාෂාව  "),
+    ("newlines", "පළමු පේළිය\n\nදෙවන පේළිය\r\nතෙවන පේළිය"),
+    ("english", "Hello, world! It's 2026."),
+    ("digits", "1948 පෙබරවාරි 4 වන දින"),
+    ("emoji", "👍 සුබ උදෑසනක්"),
+    ("html_entities", "&quot;සිංහල&quot; &amp; ඉංග්‍රීසි"),
+    ("tamil_mixed", "தமிழ் සිංහල English"),
+    ("lone_vowel_sign", "ි ා ්"),
+    ("long_word", "ප්\u200dරභාසංශ්ලේෂණය"),
+    ("chatml", "<|im_start|>user\nහෙලෝ<|im_end|>\n<|im_start|>assistant\n"),
+)
 
 OUTPUTS_DOC_INTRO = """# SinhalaLLM-1.7B Outputs on the Golden Questions
 
@@ -147,32 +226,114 @@ def dump(reference: dict) -> str:
     return json.dumps(reference, ensure_ascii=False, indent=2) + "\n"
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate golden reference outputs.")
-    parser.add_argument("--check", action="store_true", help="fail if outputs differ")
-    args = parser.parse_args()
+def source_texts(source: dict):
+    local_dir = store_path("hf", "datasets", source["name"])
+    path = Path(
+        hf_hub_download(
+            source["repo"],
+            source["file"],
+            revision=source["revision"],
+            repo_type="dataset",
+            local_dir=local_dir,
+        )
+    )
+    if path.suffix == ".parquet":
+        batches = pq.ParquetFile(path).iter_batches(columns=source["columns"], batch_size=10_000)
+        records = (row for batch in batches for row in batch.to_pylist())
+    else:
+        records = (json.loads(line) for line in path.open(encoding="utf-8"))
+    for record in itertools.islice(records, source["max_rows"]):
+        for column in source["columns"]:
+            if record.get(column):
+                yield record[column]
 
-    reference, logits = build_reference()
-    expected = {GOLDEN_PATH: dump(reference), OUTPUTS_DOC_PATH: render_outputs_doc(reference)}
 
-    if args.check:
+def sample_sentences(source: dict) -> tuple[list[str], int]:
+    candidates = dict.fromkeys(
+        sentence.strip()
+        for text in source_texts(source)
+        for sentence in SENTENCE_SPLIT.split(text)
+        if MIN_CHARS <= len(sentence.strip()) <= MAX_CHARS and SINHALA.search(sentence)
+    )
+    pool = list(candidates)
+    if len(pool) < source["count"]:
+        raise RuntimeError(f"{source['name']}: {len(pool)} sentences, need {source['count']}")
+    rng = random.Random(f"{CORPUS_SEED}:{source['name']}")
+    return rng.sample(pool, source["count"]), len(pool)
+
+
+def build_tokenizer_cases() -> tuple[dict, str, str]:
+    tokenizer = AutoTokenizer.from_pretrained(model_dir())
+
+    def encode(text: str) -> list[int]:
+        return tokenizer(text, add_special_tokens=False)["input_ids"]
+
+    corpus, sources = [], []
+    for source in CORPUS_SOURCES:
+        sentences, candidates = sample_sentences(source)
+        corpus += [{"source": source["name"], "text": t, "ids": encode(t)} for t in sentences]
+        sources.append(
+            {key: source[key] for key in ("name", "repo", "revision", "file", "count")}
+            | {"candidates": candidates}
+        )
+    corpus_text = json.dumps({"cases": corpus}, ensure_ascii=False) + "\n"
+    cases = [{"name": name, "text": text, "ids": encode(text)} for name, text in EDGE_CASES]
+    manifest = {
+        "seed": CORPUS_SEED,
+        "sentence_chars": [MIN_CHARS, MAX_CHARS],
+        "tokenizers": tokenizers.__version__,
+        "sources": sources,
+        "total": len(corpus),
+        "corpus_sha256": hashlib.sha256(corpus_text.encode("utf-8")).hexdigest(),
+    }
+    return manifest, corpus_text, dump(cases)
+
+
+def write_or_check(expected: dict[Path, str], check: bool) -> int:
+    if check:
         stale = [
-            p for p, text in expected.items() if not p.exists() or p.read_text("utf-8") != text
+            path
+            for path, text in expected.items()
+            if not path.exists() or path.read_text("utf-8") != text
         ]
         for path in stale:
             print(f"{path.relative_to(ROOT)} is out of date", file=sys.stderr)
         if stale:
             return 1
         print("golden outputs are up to date")
-    else:
-        for path, text in expected.items():
-            path.write_text(text, encoding="utf-8")
-            print(f"wrote {path.relative_to(ROOT)}")
+        return 0
+    for path, text in expected.items():
+        path.write_text(text, encoding="utf-8")
+        print(f"wrote {path.relative_to(ROOT)}")
+    return 0
 
+
+def run_reference(check: bool) -> int:
+    reference, logits = build_reference()
+    expected = {GOLDEN_PATH: dump(reference), OUTPUTS_DOC_PATH: render_outputs_doc(reference)}
+    status = write_or_check(expected, check)
     logits_dir = store_path("golden")
     logits_dir.mkdir(parents=True, exist_ok=True)
     np.savez(logits_dir / "reference_logits.npz", **logits)
-    return 0
+    return status
+
+
+def run_tokenizer(check: bool) -> int:
+    manifest, corpus_text, cases_text = build_tokenizer_cases()
+    status = write_or_check({MANIFEST_PATH: dump(manifest), CASES_PATH: cases_text}, check)
+    shutil.rmtree(TOKENIZER_COPY_DIR, ignore_errors=True)
+    write_browser_tokenizer(TOKENIZER_COPY_DIR)
+    CORPUS_PATH.write_text(corpus_text, encoding="utf-8")
+    return status
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate golden outputs.")
+    parser.add_argument("target", choices=("reference", "tokenizer"))
+    parser.add_argument("--check", action="store_true", help="fail if outputs differ")
+    args = parser.parse_args()
+    run = run_reference if args.target == "reference" else run_tokenizer
+    return run(args.check)
 
 
 if __name__ == "__main__":
