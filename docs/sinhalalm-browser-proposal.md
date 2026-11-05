@@ -8,7 +8,7 @@
 
 For a long period of time, running a language model meant sending text to a server and waiting for a response. However, the combination of compact models, ONNX-based runtimes and WebGPU has begun to make it practical to run a model entirely inside a web browser, with no server and no network connection after the first download. SinhalaLLM-1.7B is an open, instruction-tuned language model built for Sinhala on top of SmolLM2-1.7B, with a Sinhala-aware tokenizer that extends the base vocabulary by 14,192 Sinhala tokens. At 1.74B parameters, it is small enough to be a candidate for client-side inference on desktop and laptop computers.
 
-In this proposal, we present an end-to-end plan to run SinhalaLLM-1.7B offline in the browser for Sinhala question answering. The project first evaluated the HelaAI SinhalaLM models, whose answers did not reach a satisfactory question-answering quality, and then compared alternative models on the same Sinhala questions, where SinhalaLLM-1.7B was the only screened model whose answers addressed the questions. Before designing the system, we inspected its repository and found several issues that directly shape the design: a configuration that the export toolchain silently loads with the wrong RoPE base, a tokenizer that expects the zero-width joiner (ZWJ) although user input often omits it, and a context length that differs from the trained one. The proposed system addresses each of these through a configuration translation verified against the author's toolchain, explicit ZWJ repair of the input and parity gates at every conversion step, and is evaluated on quantization quality, cross-device latency and ZWJ fidelity.
+In this proposal, we present an end-to-end plan to run SinhalaLLM-1.7B offline in the browser for Sinhala question answering. The project first evaluated the HelaAI SinhalaLM models, whose answers did not reach a satisfactory question-answering quality, and then compared alternative models on the same Sinhala questions, where SinhalaLLM-1.7B was the only screened model whose answers addressed the questions. Before designing the system, we inspected its repository and found several issues that directly shape the design: a configuration that the export toolchain silently loads with the wrong RoPE base, a tokenizer that expects the zero-width joiner (ZWJ) although user input often omits it, and a context length that differs from the trained one. The proposed system addresses each of these through a configuration translation verified against the author's toolchain, explicit ZWJ normalization of the input and parity gates at every conversion step, and is evaluated on quantization quality, cross-device latency and ZWJ fidelity.
 
 ---
 
@@ -26,7 +26,7 @@ The objectives of this work are:
 - To build a browser application that runs single-turn Sinhala question answering fully offline after the first load.
 - To measure the trade-off between model size and quality across quantization levels.
 - To measure load time, time to first token and generation speed across WebGPU and WebAssembly (WASM) backends on desktop and laptop computers.
-- To evaluate whether repairing the ZWJ in user input, and preserving it through the browser runtime, improves the fidelity of Sinhala text end to end.
+- To evaluate whether normalizing the ZWJ in user input to the form the model learned, and preserving it through the browser runtime, improves the fidelity of Sinhala text end to end.
 
 The rest of this proposal is organized as follows. Section 2 summarizes the model, the model selection and the findings of our repository inspection. Section 3 defines the research questions. Section 4 presents the system design, Section 5 the implementation plan, Section 6 the testing and evaluation strategy, and Section 7 the deployment plan. Section 8 covers risks, Section 9 the milestones and community sharing plan, and Section 10 concludes the proposal.
 
@@ -68,8 +68,8 @@ Before designing the system, we inspected the configuration files, the tokenizer
 | # | Finding | Evidence | Design impact |
 |---|---|---|---|
 | S1 | The export toolchain loads the model with the wrong RoPE base. | `config.json` was written by `transformers` 5.19.0 and stores the base as `rope_parameters: {rope_theta: 130000}`. `transformers` 4.57.6, which the ONNX exporter requires, does not read this field and loads `rope_theta` as 10000. The GGUF file states `llama.rope.freq_base` 130000. | The pipeline translates the configuration for the export toolchain, and gate 1 verifies the translated load against the author's toolchain (Section 5.3). |
-| S2 | The tokenizer expects the ZWJ, but has no normalizer. | `tokenizer.json` defines no normalizer, so the ZWJ repair existed only in the training data. ශ්‍රී ලංකාව ප්‍රධාන encodes as 3 tokens, while ශ්රී ලංකාව ප්රධාන, typed without the ZWJ, encodes as 6 fragments. | User input is repaired before encoding (Section 4.2, D), and RQ3 measures the effect. |
-| S3 | The ZWJ appears in the vocabulary only in rakaransaya and yansaya. | Of the 765 vocabulary tokens that contain a ZWJ, 611 contain `්‍ර` and 150 contain `්‍ය`. The 16 conjunct clusters of the training normalizer are not published. | The input repair targets `්ර` and `්ය`, and its edge cases are evaluated by native speakers (RQ3). |
+| S2 | The tokenizer expects the ZWJ, but has no normalizer. | `tokenizer.json` defines no normalizer, so the ZWJ repair existed only in the training data. ශ්‍රී ලංකාව ප්‍රධාන encodes as 3 tokens, while ශ්රී ලංකාව ප්රධාන, typed without the ZWJ, encodes as 6 fragments. | User input is normalized before encoding (Section 4.2, D), and RQ3 measures the effect. |
+| S3 | The ZWJ appears in the vocabulary in exactly 15 conjunct clusters. | Of the 765 vocabulary tokens that contain a ZWJ, 611 contain `්‍ර` and 150 contain `්‍ය`, in 15 clusters such as ප්‍ර, ක්‍ර and ද්‍ය. None of these 15 clusters appears in the vocabulary without the ZWJ, while other clusters, such as ව්ය and ත්ය, appear only without it. The 16 clusters of the training normalizer are not published. | The input is normalized to these 15 clusters in both directions (Section 4.2, D), and its effect is measured in RQ3. |
 | S4 | The browser tokenizer reproduces the Python tokenizer. | transformers.js 4.3.2 produced the same token IDs as the Python `tokenizers` library on 210 inputs: 200 Sinhala texts and 10 edge cases, including a byte order mark, U+0085, the zero-width non-joiner and ChatML special tokens. ZWJ survives decoding. | No custom tokenizer port is needed; gate 3 verifies the transformers.js tokenizer at scale. |
 | S5 | The configured context is longer than the trained context. | `max_position_embeddings` is 8,192, while the model card states a trained context of 2,048 tokens. | The application caps prompt plus generation at 1,024 tokens, which also bounds the key-value cache memory. |
 | S6 | Two tokens end generation. | `generation_config.json` lists `eos_token_id` as `[2, 0]`, which are `<|im_end|>` and `<|endoftext|>`, while `config.json` lists only 0. `config.json` also sets `use_cache` to false. | Generation stops at either token, and the export enables the key-value cache explicitly. |
@@ -87,7 +87,7 @@ Since the application itself is an engineering artifact, we frame the measurable
 
 - **RQ1 (Quantization):** How does perplexity on held-out Sinhala text change across fp32, fp16, int8 (q8) and 4-bit (q4) variants, and what is the smallest variant whose quality stays within an acceptable margin of fp32?
 - **RQ2 (Latency):** How do download size, cold and warm load time, time to first token and generation speed differ between the WebGPU and WASM backends across desktop and laptop computers?
-- **RQ3 (ZWJ fidelity):** Does repairing the ZWJ in user input (`්ර` to `්‍ර` and `්ය` to `්‍ය`) reduce tokenization fragments and improve the answers, and is the ZWJ preserved end to end from input to rendered output in the browser? How often do native speakers judge the repaired input and the rendered output as correct?
+- **RQ3 (ZWJ fidelity):** Does normalizing the ZWJ in user input to the 15 clusters the model learned reduce tokenization fragments and improve the answers, and is the ZWJ preserved end to end from input to rendered output in the browser? How often do native speakers judge the normalized input and the rendered output as correct?
 
 ---
 
@@ -128,7 +128,7 @@ flowchart LR
     F["E. UI thread"] -->|"question + settings"| G["C. Inference Web Worker"]
     G --> H["B. transformers.js tokenizer<br/>parity gate 3"]
     G --> I["transformers.js + ONNX Runtime Web<br/>WebGPU or WASM"]
-    G -->|"token stream"| J["D. Text processing<br/>ZWJ repair, entity decoding"]
+    G -->|"token stream"| J["D. Text processing<br/>ZWJ normalization, entity decoding"]
     J --> F
     K["F. Service worker + Cache Storage"] -.->|"offline assets"| F
     K -.->|"model files"| I
@@ -150,19 +150,19 @@ The components are described below.
 
 **D) Text processing.** This component handles the text on both sides of the model:
 
-- **Input, ZWJ repair:** `්ර` becomes `්‍ර` and `්ය` becomes `්‍ය` before encoding, since the model learned these clusters with the ZWJ (S2, S3). Text that already contains the ZWJ is left unchanged.
+- **Input, ZWJ normalization:** in the 15 clusters the model learned with the ZWJ (S3), such as `ප්ර` and `ද්ය`, the missing ZWJ is added. In all other `්ර` and `්ය` clusters, such as `ව්‍ය`, the ZWJ is removed, since the model learned those clusters without it. The result is the same normalization the training data went through.
 - **Output, streaming decode:** the byte-level tokenizer can split a Sinhala character, which takes three bytes in UTF-8, across two tokens. The worker therefore emits text only when complete characters are available.
 - **Output, HTML entities:** entities such as `&quot;` and `&amp;` are decoded into the characters they stand for, with a small buffer so that an entity split across two tokens is still recognized.
 
-The following examples show what the input repair does.
+The following examples show what the input normalization does.
 
-*Example 1: why the input is repaired.* Consider a reader who types ශ්රී ලංකාව ප්රධාන without the ZWJ, which is common when text is typed on a keyboard that does not insert it. The tokenizer produces 6 tokens, since the vocabulary learned these clusters in their ZWJ form. After the repair, the same text becomes ශ්‍රී ලංකාව ප්‍රධාන and produces 3 tokens, which is the form the model saw during training.
+*Example 1: why the input is normalized.* Consider a reader who types ශ්රී ලංකාව ප්රධාන without the ZWJ, which is common when text is typed on a keyboard that does not insert it. The tokenizer produces 6 tokens, since the vocabulary learned these clusters in their ZWJ form. After normalization, the same text becomes ශ්‍රී ලංකාව ප්‍රධාන and produces 3 tokens, which is the form the model saw during training.
 
-*Example 2: why the repair is limited to two clusters.* The vocabulary contains the ZWJ only after a virama and before ර or ය (S3). Repairing other sequences would create text the model never saw, so the rule stays within these two clusters, and its edge cases are evaluated by native speakers (RQ3).
+*Example 2: why the rule follows the vocabulary rather than the spelling rules.* A blanket rule that adds the ZWJ to every `්ර` and `්ය` would also turn ව්යාපාරය into ව්‍යාපාරය, a cluster the model never saw with the ZWJ. On the 10,000-sentence tokenizer corpus, the blanket rule increased the token count by 0.26%, while the 15-cluster normalization reduced it by 1.6%, and by 10.4% on sentences whose ZWJ had been removed ([zwj-normalization.md](findings/zwj-normalization.md)).
 
 ```mermaid
 flowchart LR
-  U["Reader's question<br/>may lack ZWJ, e.g. ශ්රී"] --> R["repairZwj<br/>්ර to ්‍ර, ්ය to ්‍ය"]
+  U["Reader's question<br/>may lack ZWJ, e.g. ශ්රී"] --> R["normalizeZwj<br/>15 learned clusters"]
   R --> T["ChatML template"]
   T --> ENC["transformers.js tokenizer"]
   ENC --> M["Model generates IDs"]
@@ -207,7 +207,7 @@ sequenceDiagram
 When the offline reader asks a question, the request flows through the system as follows:
 
 1. The UI thread sends the question and settings to the worker.
-2. The worker repairs the ZWJ in the question, applies the ChatML template and encodes the prompt with the transformers.js tokenizer.
+2. The worker normalizes the ZWJ in the question, applies the ChatML template and encodes the prompt with the transformers.js tokenizer.
 3. The worker checks that the prompt plus `max_new_tokens` does not exceed 1,024 tokens (S5), and reduces `max_new_tokens` if necessary.
 4. transformers.js runs generation with key-value caching, stopping at `<|im_end|>` or `<|endoftext|>` (S6).
 5. Each new piece of text is decoded once its characters are complete, passed through entity decoding and streamed to the UI.
@@ -220,7 +220,7 @@ sequenceDiagram
   participant RT as transformers.js model
   participant P as Text processing
   UI->>W: Question and settings
-  W->>P: repairZwj
+  W->>P: normalizeZwj
   W->>T: ChatML template, encode
   T-->>W: Prompt IDs
   W->>W: Cap max_new_tokens so the total stays within 1,024
@@ -242,7 +242,7 @@ sequenceDiagram
 
 **transformers.js tokenizer instead of a custom port.** Since the browser tokenizer already reproduces the Python tokenizer on Sinhala text (S4), the application uses it directly. The cost is a parity test suite; the benefit is that the tokenizer stays in sync with the published `tokenizer.json` without any custom code.
 
-**Input repair instead of input stripping.** The model learned conjuncts with the ZWJ, so the application adds the missing ZWJ rather than removing it. This keeps the reader's question in the same form as the training data.
+**Input normalization that follows the vocabulary.** The model learned 15 conjunct clusters with the ZWJ and all others without it, so the application normalizes the reader's question to exactly that form, rather than adding or removing the ZWJ everywhere. This keeps the question in the same form as the training data.
 
 **Web Worker instead of main-thread inference.** A 1.74B model can block the UI thread for hundreds of milliseconds per step. Running inference in a worker keeps typing and scrolling responsive.
 
@@ -327,7 +327,7 @@ const tokenizer = await AutoTokenizer.from_pretrained(MODEL);
 const model = await AutoModelForCausalLM.from_pretrained(MODEL, { device, dtype: "q4" });
 
 async function answer(question, opts, onText) {
-  const messages = [{ role: "user", content: repairZwj(question) }];
+  const messages = [{ role: "user", content: normalizeZwj(question) }];
   const inputs = tokenizer.apply_chat_template(messages, {
     add_generation_prompt: true,
     return_dict: true,
@@ -366,7 +366,7 @@ sinhalalm-web/
 │   └── make_golden.py        # golden logits + tokenizer cases
 ├── golden/                   # fixtures shared by Python and JS tests
 ├── web/
-│   ├── src/text/zwj.js       # repairZwj
+│   ├── src/text/zwj.js       # normalizeZwj
 │   ├── src/text/entities.js  # decodeEntities
 │   ├── src/worker/inference.worker.js
 │   ├── src/ui/
@@ -411,7 +411,7 @@ Gate 4 compares the same quantized file in two runtimes, rather than the fp32 mo
   - ශ්‍රී ලංකාව ප්‍රධාන → 3 tokens, and ශ්රී ලංකාව ප්රධාන → 6 tokens;
   - text with the zero-width non-joiner, a byte order mark and U+0085 → the same IDs as Python;
   - the ChatML prompt for a question → the same string and IDs as Python.
-- **Text processing**: `repairZwj` on a curated list of rakaransaya and yansaya words, on text that already contains the ZWJ and on words where the rule should not apply; `decodeEntities` on `&quot;`, `&amp;` and an entity split across two chunks.
+- **Text processing**: `normalizeZwj` on the 15 learned clusters, on clusters where the ZWJ must be removed, on text that is already normalized and on sequences where the rule must not apply (a repaya, the zero-width non-joiner); `decodeEntities` on `&quot;`, `&amp;` and an entity split across two chunks.
 - **Context limit**: prompts close to 1,024 tokens never exceed the limit after generation.
 
 #### 6.3 End-to-end tests
@@ -434,7 +434,7 @@ Since the target devices are desktop and laptop computers, the benchmark matrix 
 
 #### 6.5 Human evaluation (RQ3)
 
-ZWJ repair and answer quality are judged by native Sinhala speakers. For RQ3, raters see the answers to the same questions with and without input repair, and mark which answer is better and whether the rendered conjuncts are correct. The number of raters and the sample size are decided after a first sample of generations, starting from three native-speaker raters and about 150 items, with Fleiss' kappa for inter-rater agreement.
+ZWJ normalization and answer quality are judged by native Sinhala speakers. For RQ3, raters see the answers to the same questions with and without input normalization, and mark which answer is better and whether the rendered conjuncts are correct. The number of raters and the sample size are decided after a first sample of generations, starting from three native-speaker raters and about 150 items, with Fleiss' kappa for inter-rater agreement.
 
 #### 6.6 Acceptance criteria
 
@@ -496,7 +496,7 @@ All inference happens on the device, and the application sends no analytics. The
 |---|---|---|
 | Configuration read differently by two `transformers` versions (S1) | Silently wrong model | Configuration translation, gate 1 with a negative control, pinned versions. |
 | Tokenizer drift between Python and JS | Silent quality loss | Parity gate 3 on 10,000 sentences, run on every `make ci`. |
-| ZWJ repair rules wrong for some words (S3) | Incorrect input | Rules limited to the clusters in the vocabulary, native-speaker evaluation (RQ3) and a setting to disable the repair. |
+| ZWJ normalization wrong for some words (S3) | Incorrect input | Rules limited to the clusters in the vocabulary, native-speaker evaluation (RQ3) and a setting to disable the normalization. |
 | Export needs more memory or disk than available (S7) | Export fails | Model store on an external drive; export in a single process with other applications closed; fp16 export as a fallback. |
 | q4 leaves the tied embedding in fp32 | Download above 1.2 GB | Quantize the embedding and head as part of RQ1; ship q8 or a larger budget if quality requires it. |
 | WASM cannot hold large variants | Gate 4 or the WASM fallback fails | Gate 4 on the quantized default; WASM support verified at the start of the browser work. |
@@ -524,6 +524,6 @@ The work is organized into four milestones. Each milestone ends with a result th
 
 ### 10. Conclusion
 
-Throughout this proposal, we presented an end-to-end plan for running SinhalaLLM-1.7B offline in the browser. We began with a model selection, which replaced the HelaAI SinhalaLM models after their answers did not reach a satisfactory quality, and with an inspection of the selected model, which showed that the main risks lie in how the configuration is read and how the ZWJ is handled rather than in the architecture. We then designed a system that separates a verified build-time pipeline from a browser runtime, with a configuration translation, a verified browser tokenizer, explicit ZWJ repair and a parity gate at every transformation. Finally, we defined the testing, deployment and evaluation plan that turns the application into measurable results on quantization quality, cross-device latency and ZWJ fidelity.
+Throughout this proposal, we presented an end-to-end plan for running SinhalaLLM-1.7B offline in the browser. We began with a model selection, which replaced the HelaAI SinhalaLM models after their answers did not reach a satisfactory quality, and with an inspection of the selected model, which showed that the main risks lie in how the configuration is read and how the ZWJ is handled rather than in the architecture. We then designed a system that separates a verified build-time pipeline from a browser runtime, with a configuration translation, a verified browser tokenizer, explicit ZWJ normalization and a parity gate at every transformation. Finally, we defined the testing, deployment and evaluation plan that turns the application into measurable results on quantization quality, cross-device latency and ZWJ fidelity.
 
 In the context of our offline reader, the outcome is a Sinhala question-answering page that works with no server and no connection after its first load, built on a model that was designed for Sinhala from its tokenizer upwards.

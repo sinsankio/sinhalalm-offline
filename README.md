@@ -15,7 +15,7 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 - **Reference load** — the model is loaded in the export toolchain with a translated configuration, since `transformers` 4.57 otherwise reads its RoPE base as 10000 instead of 130000, and gate 1 verifies the load against `transformers` 5.19.
 - **ONNX export and quantization** — the model is exported with key-value caching and quantized into fp16, q8 and q4 variants.
 - **Tokenizer** — the transformers.js tokenizer is verified against the Python tokenizer, so that the browser produces the exact token IDs the model was trained on.
-- **ZWJ handling** — the zero-width joiner is added to user input where it is missing (for example, `්ර` becomes `්‍ර`), since the model learned conjuncts in that form, and HTML entities are decoded in the output.
+- **ZWJ handling** — the zero-width joiner in the reader's question is normalized to the 15 conjunct clusters the model learned with it (for example, `ප්ර` becomes `ප්‍ර`, while `ව්‍ය` becomes `ව්ය`), and HTML entities are decoded in the output.
 - **Browser runtime** — transformers.js runs the model in a Web Worker on WebGPU, with a WebAssembly fallback.
 - **Offline layer** — a service worker and the browser's Cache Storage keep the page and the model available without a connection.
 
@@ -25,8 +25,8 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 |---|---|---|
 | 0 | Project bootstrap and toolchain checks | Done |
 | 1 | Model selection, reference outputs and configuration translation (gate 1) | Done |
-| 2 | Tokenizer parity (gate 3) and ZWJ handling | In progress |
-| 3 | ONNX export (gate 2), quantization and RQ1 | Planned |
+| 2 | Tokenizer parity (gate 3) and ZWJ handling | Done |
+| 3 | ONNX export (gate 2), quantization and RQ1 | Next |
 | 4 | Browser application, offline mode and gate 4 | Planned |
 | 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
 | 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned |
