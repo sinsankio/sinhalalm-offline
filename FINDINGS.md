@@ -6,9 +6,25 @@ This document summarizes the research and development findings of the project in
 
 | Document | Topic | Summary |
 |---|---|---|
+| [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
+| [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
 | [toolchain.md](docs/findings/toolchain.md) | Export, runtime, quantization and hosting constraints | The planned Llama export path works with current tools, but only with pinned versions, and q4 leaves the tied embedding and head in fp32. |
-| [repository-audit.md](docs/findings/repository-audit.md) | Audit of the two HelaAI repositories | All nine original findings reproduce, F4 is corrected to two template `<UNK>` tokens, and three new findings are added. |
-| [llama-equivalence.md](docs/findings/llama-equivalence.md) | Parity gate 1 | Both checkpoints convert to `LlamaForCausalLM` with a logit difference of exactly 0.0 and identical greedy output. |
+| [repository-audit.md](docs/findings/repository-audit.md) | Audit of the two HelaAI repositories (previous model) | All nine original findings reproduce, F4 is corrected to two template `<UNK>` tokens, and three new findings are added. |
+| [llama-equivalence.md](docs/findings/llama-equivalence.md) | Parity gate 1 for the HelaAI models (previous model) | Both checkpoints convert to `LlamaForCausalLM` with a logit difference of exactly 0.0 and identical greedy output. |
+
+### Model selection
+
+- **The HelaAI models were replaced.** Their answers on the golden prompts did not reach a satisfactory question-answering quality, although their Llama conversion was exact.
+- **SinhalaLLM-1.7B was selected.** On ten Sinhala questions, it was the only screened model whose answers addressed the questions, while Qwen3.5-2B and Qwen3.5-0.8B were mostly wrong and ran to the token limit.
+- **Its tokenizer is the most efficient for Sinhala.** It needs 1.76 tokens per word, against 2.66 for SinhalaLM, 3.16 for Gemma 4 and 4.92 for Qwen3.5, and keeps the ZWJ.
+- **The scope changed with the model.** The application provides question answering only, and the targets were raised to at most 1.2 GB of download and 2 GB of tab memory.
+
+### SinhalaLLM-1.7B inspection
+
+- **S1: the RoPE base is read differently by two `transformers` versions.** Version 5.19.0 stores it as `rope_parameters`, which version 4.57.6 ignores, so the export toolchain would load 10000 instead of 130000 without any error.
+- **S2 and S3: the ZWJ must be added to the input.** The tokenizer has no normalizer, ශ්රී ලංකාව ප්රධාන without the ZWJ becomes 6 fragments instead of 3 tokens, and the vocabulary contains the ZWJ only in `්‍ර` (611 tokens) and `්‍ය` (150 tokens).
+- **S4: the browser tokenizer matches the Python one.** transformers.js 4.3.2 produced identical token IDs on 210 Sinhala texts and edge cases, so no custom tokenizer port is needed.
+- **S5–S8: context, stop tokens, size and accuracy.** The application caps the context at 1,024 tokens, stops at both `<|im_end|>` and `<|endoftext|>`, ships only quantized variants of the 6.96 GB fp32 model, and labels answers as unverified.
 
 ### Toolchain check
 
@@ -23,7 +39,7 @@ A tiny Llama model with the SinhalaLM configuration was exported, run and quanti
 - **Space headers are restricted.** Only the COOP, COEP and CORP headers can be set, in lowercase. Iframe isolation and service worker behavior are verified on a live Space in Phase 5.
 - **Software WebGPU adapters must be rejected.** Headless Chrome on Linux exposed only a `swiftshader` adapter, so the worker falls back to WASM in that case.
 
-### Repository audit
+### Repository audit (previous model)
 
 The nine audit findings of the proposal (F1–F9) were reproduced against the HelaAI repositories at pinned revisions.
 
@@ -34,7 +50,7 @@ The nine audit findings of the proposal (F1–F9) were reproduced against the He
 - **F11: two fine-tuning datasets are named.** The instruct config names the ELI5 dataset, while the training code names the question-answer pairs dataset.
 - **F12: ELI5 HTML entities appear in outputs.** `&quot;` is common in the ELI5 answers, absent in the question-answer pairs, and reproduced literally by the instruct model. The application therefore decodes HTML entities in model outputs.
 
-### Llama equivalence (gate 1)
+### Llama equivalence, gate 1 (previous model)
 
 - **Both checkpoints pass.** The maximum absolute logit difference is 0.0 on every golden prompt and on a random 512-token input, and all 40-token greedy generations with key-value caching are identical.
 - **The converted model is the expected size.** It has 32,850,432 parameters, and the fp32 file is 131,409,848 bytes, which matches the proposal's 131.4 MB estimate.
