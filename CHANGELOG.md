@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/llama-conversion — Llama conversion and parity gate 1
+
+#### Added
+
+- `convert/parity_check.py`, which converts both checkpoints to `LlamaForCausalLM` and runs parity gate 1. The gate compares logits on the golden prompts and on a random 512-token input, compares 40-token greedy generations under key-value caching against `golden/reference.json`, checks that the converted model has 32,850,432 parameters, and reloads the saved model to confirm that the files on disk give the same logits.
+- Before dropping them, the conversion checks that `lm_head.weight` is identical to `tok_emb.weight` and that every stored RoPE `cos` and `sin` table equals the recomputed table.
+- `make convert`, which writes the converted models to `build/llama/<model>/` together with a `parity.json` report. `make ci` now runs gate 1.
+
+#### Results
+
+- Both checkpoints pass gate 1 with a maximum absolute logit difference of 0.0 on every case, no greedy mismatches and 32,850,432 parameters. The saved models reload with a difference of 0.0.
+- Each converted fp32 `model.safetensors` is 131,409,848 bytes, which matches the 131.4 MB estimate in Section 5.5 of the proposal.
+
+#### Decisions
+
+- `generation_config.json` sets `eos_token_id` to 3 and uses the sampling defaults of the upstream `answer_question` function (temperature 0.7, top-k 50).
+
+#### Attempts
+
+- Loading the converted state with `strict=True` failed with `Missing key(s) in state_dict: "lm_head.weight"`, since `LlamaForCausalLM` expects the tied head as a key even though it shares storage with the embedding. The state now passes the embedding tensor under both names, and the conversion asserts that the two parameters share the same storage afterwards.
+
 ### feat/golden-reference — Golden reference outputs
 
 #### Added
