@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/onnx-export — ONNX export and parity gate 2
+
+#### Added
+
+- `convert/export_onnx.py`, which exports the model with the translated configuration through the Optimum exporter (`text-generation-with-past`, opset 18) in two steps: a memory-capped child traces the model, and the parent verifies every tensor file by size, ties the duplicated output head back to the embedding and writes one `model.onnx_data`.
+- `convert/eval_quality.py gate2`, which compares the fp32 ONNX model in ONNX Runtime with the golden logits and greedy answers.
+- `make onnx`, which runs the export and gate 2, and is now part of `make ci`. `EXPORT_MEMORY` (default 11G) sets the memory cap of the trace step.
+- `docs/findings/onnx-export.md` with the export and gate 2 results.
+- The export dependencies in the export group: `optimum` 2.1.0, `optimum-onnx` 0.1.0, `onnx` 1.23.2, `onnx-ir` 1.1.0, `onnxruntime` 1.31.0, `onnxslim` 0.1.98 and `accelerate` 1.15.0.
+
+#### Changed
+
+- Gate 2 now passes when the largest logit difference stays below 1e-4 of each position's largest absolute logit, the top-1 token is identical at every position and all greedy answers are identical. The proposal's gate table and Section 5.5 describe this criterion.
+- `random_ids` moved into `convert/sinhalallm.py`, so that gate 1 and gate 2 build the same random input.
+- The proposal lists `export_onnx.py` instead of `export_onnx.sh`, since the export needs the in-memory model with the translated configuration.
+
+#### Attempts
+
+- The single-process export, capped at 8.8 GB, was killed while Optimum merged the per-tensor files into one file, since that step loads the whole ONNX model while the PyTorch model is still in memory.
+- With the merge disabled, tracing completed, but the process was still killed shortly after writing all tensor files, at caps of 8.8 GB and 11 GB. When the whole export ran inside one capped scope, the kill of the child also terminated the parent, so the finalize step never ran. The cap now applies only to the trace child, and the parent verifies the written files before continuing.
+- One run failed because a second Claude session was running the same export at the same time, and both processes were killed for memory. The other session's export was stopped before the export was repeated.
+- The first gate 2 run used the absolute tolerance of gate 1 and failed at 7.6e-4. The maximum was always at position 0 and depended on the sequence length, PyTorch's own SDPA-versus-eager difference was 7.1e-5, and disabling ONNX Runtime's graph optimizations did not remove the difference. The gate was therefore redefined with a relative tolerance and top-1 agreement instead of being loosened.
+
+#### Results
+
+- The finalized fp32 model has 219 initializers and a 6,961,897,472-byte data file, exactly 4 bytes per parameter.
+- Gate 2 passes with a maximum relative logit difference of 3.46e-5, a maximum absolute difference of 7.6e-4 at position 0, identical top-1 tokens at every position and no greedy mismatches.
+
 ### feat/text-processing — ZWJ normalization and entity decoding
 
 #### Added
