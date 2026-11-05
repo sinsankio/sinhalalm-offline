@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/audit-findings — Repository audit and Llama equivalence
+
+#### Added
+
+- `docs/findings/repository-audit.md`, which reproduces the nine audit findings of the proposal against the HelaAI repositories at pinned revisions, corrects one detail of F4, adds three new findings (F10–F12) and lists suggested upstream fixes for the HelaAI authors.
+- `docs/findings/llama-equivalence.md`, which reports the results of parity gate 1.
+- Summaries of both documents in `FINDINGS.md`.
+
+#### Changed
+
+- The proposal now reflects the decisions taken since it was written: desktop and laptop computers as the only target devices (NFR5, RQ2), the benchmark device matrix (Section 6.4), the rater plan (Section 6.5), provisional performance targets (Section 6.6), a Hugging Face static Space as the host (Section 7.1), the local Makefile pipeline instead of GitHub Actions (Sections 5.8 and 7.2), and permission from the HelaAI authors (Section 5.1).
+- The proposal's references to `tools/parity_check.py` now point to `convert/parity_check.py`, and its project structure lists `convert/helaai.py`.
+- The proposal now plans quantization with ONNX Runtime's tools, since the transformers.js quantization script was removed in version 4 (Section 5.5), and computes the FLORES+ reference perplexity together with the quality evaluation (Section 5.2).
+- F4, Figure 5 and the tokenizer regression tests in the proposal now state that the instruct template alone yields 24 tokens with two `<UNK>`, and that the 37 tokens with three `<UNK>` include the model card's example question.
+
+#### Open
+
+- F12 raises whether HTML entities such as `&quot;` should be decoded in instruct outputs. This is left as a question for the text post-processing work in Phase 2.
+
 ### feat/llama-conversion — Llama conversion and parity gate 1
 
 #### Added
