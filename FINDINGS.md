@@ -8,6 +8,7 @@ This document summarizes the research and development findings of the project in
 |---|---|---|
 | [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
 | [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
+| [onnx-export.md](docs/findings/onnx-export.md) | ONNX export and parity gate 2 | The export fits the machine only as a capped trace plus a separate verify-and-finalize step, and the fp32 ONNX model reproduces every greedy answer with a relative logit difference of at most 3.46e-5. |
 | [zwj-normalization.md](docs/findings/zwj-normalization.md) | Input normalization of the ZWJ | The model learned exactly 15 clusters with the ZWJ and all others without it, so normalizing the input to that split reduces tokens by 1.6% on the corpus and by 10.4% on text typed without the ZWJ, while a blanket rule increases them. |
 | [tokenizer-parity.md](docs/findings/tokenizer-parity.md) | Parity gate 3 | transformers.js reproduces the Python tokenizer on 10,000 Sinhala sentences and 17 edge cases, once the chat template is embedded for the browser. |
 | [config-translation.md](docs/findings/config-translation.md) | Parity gate 1 for SinhalaLLM-1.7B | The translated configuration loads the model in `transformers` 4.57.6 identically to 5.19.0, while the untranslated one differs by up to 11.66 in the logits. |
@@ -28,6 +29,12 @@ This document summarizes the research and development findings of the project in
 - **S2 and S3: the ZWJ must be added to the input.** The tokenizer has no normalizer, ශ්රී ලංකාව ප්රධාන without the ZWJ becomes 6 fragments instead of 3 tokens, and the vocabulary contains the ZWJ only in `්‍ර` (611 tokens) and `්‍ය` (150 tokens).
 - **S4: the browser tokenizer matches the Python one.** transformers.js 4.3.2 produced identical token IDs on 210 Sinhala texts and edge cases, so no custom tokenizer port is needed.
 - **S5–S8: context, stop tokens, size and accuracy.** The application caps the context at 1,024 tokens, stops at both `<|im_end|>` and `<|endoftext|>`, ships only quantized variants of the 6.96 GB fp32 model, and labels answers as unverified.
+
+### ONNX export (gate 2)
+
+- **The export is split to fit into memory.** A memory-capped child traces the model and writes one file per tensor, and a separate process verifies every file by size, ties the duplicated output head back to the embedding and writes one 6.96 GB data file, exactly 4 bytes per parameter.
+- **The fp32 ONNX model is faithful.** Its greedy answers match the reference on all ten golden questions, the top-1 token matches at every position, and the largest logit difference is 3.46e-5 of each position's largest logit.
+- **Gate 2 uses a relative tolerance.** The absolute tolerance of 1e-4 failed at 7.6e-4, always at position 0, and diagnostics attributed this to rounding differences between the fp32 kernels of ONNX Runtime and PyTorch rather than to the export.
 
 ### ZWJ normalization
 

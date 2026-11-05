@@ -8,7 +8,7 @@ import transformers
 from transformers import LlamaConfig, LlamaForCausalLM
 from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
 
-from sinhalallm import STOP_IDS, load_golden, model_dir, raw_config, store_path
+from sinhalallm import STOP_IDS, load_golden, model_dir, random_ids, raw_config, store_path
 
 LOGIT_TOLERANCE = 1e-4
 EXPECTED_PARAMETERS = 1_740_474_368
@@ -53,12 +53,6 @@ def greedy(model: LlamaForCausalLM, ids: list[int], max_new_tokens: int) -> list
         pad_token_id=STOP_IDS[1],
     )
     return output[0, len(ids) :].tolist()
-
-
-def random_ids(spec: dict) -> list[int]:
-    generator = torch.Generator().manual_seed(spec["seed"])
-    shape = (spec["length"],)
-    return torch.randint(spec["low"], spec["high"], shape, generator=generator).tolist()
 
 
 def run() -> dict:

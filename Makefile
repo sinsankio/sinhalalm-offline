@@ -7,6 +7,8 @@ SHELL := /bin/bash
 
 MODEL_STORE ?= build
 export SINHALALM_STORE := $(abspath $(MODEL_STORE))
+EXPORT_MEMORY ?= 11G
+export SINHALALM_EXPORT_MEMORY := $(EXPORT_MEMORY)
 
 UV ?= uv
 NPM ?= npx -y npm@11.21.1
@@ -21,8 +23,10 @@ GOLDEN_INPUTS := convert/sinhalallm.py convert/make_golden.py golden/prompts.jso
 GATE1_INPUTS := convert/sinhalallm.py convert/parity_check.py golden/reference.json uv.lock
 TOKENIZER_CORPUS := golden/generated/tokenizer_corpus.json
 TOKENIZER_INPUTS := convert/sinhalallm.py convert/make_golden.py uv.lock
+ONNX_FP32 := $(SINHALALM_STORE)/onnx/fp32/export.json
+GATE2_REPORT := $(SINHALALM_STORE)/onnx/fp32/gate2.json
 
-.PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert verify test-web ci
+.PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx verify test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -59,6 +63,12 @@ $(TOKENIZER_CORPUS): $(TOKENIZER_INPUTS)
 $(GATE1_REPORT): $(GATE1_INPUTS) $(GOLDEN_LOGITS)
 	$(PY) convert/parity_check.py
 
+$(ONNX_FP32): convert/export_onnx.py $(GATE1_REPORT)
+	$(PY) convert/export_onnx.py
+
+$(GATE2_REPORT): convert/eval_quality.py $(ONNX_FP32) $(GOLDEN_LOGITS)
+	$(PY) convert/eval_quality.py gate2
+
 golden: ## Regenerate golden outputs and tokenizer cases with the reference toolchain
 	$(REF_PY) convert/make_golden.py reference
 	$(REF_PY) convert/make_golden.py tokenizer
@@ -69,10 +79,12 @@ check-golden: ## Verify golden outputs and tokenizer cases are reproducible
 
 convert: $(GATE1_REPORT) ## Gate 1: verify the export toolchain against the reference
 
+onnx: $(GATE2_REPORT) ## Export fp32 ONNX and run gate 2 against the reference
+
 verify: check-golden ## Rerun golden generation and gate 1 from scratch
 	$(PY) convert/parity_check.py
 
 test-web: $(TOKENIZER_CORPUS) ## Run web unit tests, including gate 3
 	cd $(WEB) && $(NPM) test
 
-ci: lint convert test-web ## Run the local CI pipeline
+ci: lint convert onnx test-web ## Run the local CI pipeline
