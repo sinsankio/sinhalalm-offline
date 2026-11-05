@@ -8,6 +8,7 @@ This document summarizes the research and development findings of the project in
 |---|---|---|
 | [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
 | [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
+| [zwj-normalization.md](docs/findings/zwj-normalization.md) | Input normalization of the ZWJ | The model learned exactly 15 clusters with the ZWJ and all others without it, so normalizing the input to that split reduces tokens by 1.6% on the corpus and by 10.4% on text typed without the ZWJ, while a blanket rule increases them. |
 | [tokenizer-parity.md](docs/findings/tokenizer-parity.md) | Parity gate 3 | transformers.js reproduces the Python tokenizer on 10,000 Sinhala sentences and 17 edge cases, once the chat template is embedded for the browser. |
 | [config-translation.md](docs/findings/config-translation.md) | Parity gate 1 for SinhalaLLM-1.7B | The translated configuration loads the model in `transformers` 4.57.6 identically to 5.19.0, while the untranslated one differs by up to 11.66 in the logits. |
 | [toolchain.md](docs/findings/toolchain.md) | Export, runtime, quantization and hosting constraints | The planned Llama export path works with current tools, but only with pinned versions, and q4 leaves the tied embedding and head in fp32. |
@@ -27,6 +28,13 @@ This document summarizes the research and development findings of the project in
 - **S2 and S3: the ZWJ must be added to the input.** The tokenizer has no normalizer, ශ්රී ලංකාව ප්රධාන without the ZWJ becomes 6 fragments instead of 3 tokens, and the vocabulary contains the ZWJ only in `්‍ර` (611 tokens) and `්‍ය` (150 tokens).
 - **S4: the browser tokenizer matches the Python one.** transformers.js 4.3.2 produced identical token IDs on 210 Sinhala texts and edge cases, so no custom tokenizer port is needed.
 - **S5–S8: context, stop tokens, size and accuracy.** The application caps the context at 1,024 tokens, stops at both `<|im_end|>` and `<|endoftext|>`, ships only quantized variants of the 6.96 GB fp32 model, and labels answers as unverified.
+
+### ZWJ normalization
+
+- **The vocabulary defines 15 ZWJ clusters.** Rakaransaya in ප්‍ර, ත්‍ර, ක්‍ර, ග්‍ර, ශ්‍ර, ද්‍ර and ඝ්‍ර, and yansaya in ධ්‍ය, ද්‍ය, ශ්‍ය, ජ්‍ය, ඛ්‍ය, භ්‍ය, ට්‍ය and ෂ්‍ය never appear without the ZWJ, while other clusters, such as ව්ය and ත්ය, appear only without it.
+- **A blanket rule is counterproductive.** Adding the ZWJ after every virama before ර or ය increased the corpus by 0.26% in tokens.
+- **Normalizing to the learned split is best.** Adding the ZWJ in the 15 clusters and removing it elsewhere reduced the corpus by 1.57%, and text typed without the ZWJ by 10.4%. The application uses this rule as `normalizeZwj`.
+- **The output may need the opposite step.** The model most likely writes clusters such as සත්ය without the ZWJ, so restoring it in the output is a candidate for RQ3.
 
 ### Tokenizer parity (gate 3)
 
