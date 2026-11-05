@@ -8,6 +8,7 @@ This document summarizes the research and development findings of the project in
 |---|---|---|
 | [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
 | [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
+| [tokenizer-parity.md](docs/findings/tokenizer-parity.md) | Parity gate 3 | transformers.js reproduces the Python tokenizer on 10,000 Sinhala sentences and 17 edge cases, once the chat template is embedded for the browser. |
 | [config-translation.md](docs/findings/config-translation.md) | Parity gate 1 for SinhalaLLM-1.7B | The translated configuration loads the model in `transformers` 4.57.6 identically to 5.19.0, while the untranslated one differs by up to 11.66 in the logits. |
 | [toolchain.md](docs/findings/toolchain.md) | Export, runtime, quantization and hosting constraints | The planned Llama export path works with current tools, but only with pinned versions, and q4 leaves the tied embedding and head in fp32. |
 | [repository-audit.md](docs/findings/repository-audit.md) | Audit of the two HelaAI repositories (previous model) | All nine original findings reproduce, F4 is corrected to two template `<UNK>` tokens, and three new findings are added. |
@@ -26,6 +27,12 @@ This document summarizes the research and development findings of the project in
 - **S2 and S3: the ZWJ must be added to the input.** The tokenizer has no normalizer, ශ්රී ලංකාව ප්රධාන without the ZWJ becomes 6 fragments instead of 3 tokens, and the vocabulary contains the ZWJ only in `්‍ර` (611 tokens) and `්‍ය` (150 tokens).
 - **S4: the browser tokenizer matches the Python one.** transformers.js 4.3.2 produced identical token IDs on 210 Sinhala texts and edge cases, so no custom tokenizer port is needed.
 - **S5–S8: context, stop tokens, size and accuracy.** The application caps the context at 1,024 tokens, stops at both `<|im_end|>` and `<|endoftext|>`, ships only quantized variants of the 6.96 GB fp32 model, and labels answers as unverified.
+
+### Tokenizer parity (gate 3)
+
+- **The browser tokenizer is identical.** transformers.js 4.3.1 produced the same token IDs as the Python tokenizer on 10,000 Sinhala sentences from four pinned sources and on 17 edge cases, including ZWJ, ZWNJ, a byte order mark and whitespace characters that Python and JavaScript treat differently.
+- **S9: the chat template must be embedded for the browser.** The model stores its template in `chat_template.jinja`, which `AutoTokenizer` in transformers.js does not read. With the template embedded in `tokenizer_config.json`, all ten chat prompts matched Python as text and as token IDs.
+- **The corpus is reproducible without being committed.** A manifest records the source revisions, the seed and the corpus hash, and the test fails if the corpus on disk does not match it.
 
 ### Configuration translation (gate 1)
 

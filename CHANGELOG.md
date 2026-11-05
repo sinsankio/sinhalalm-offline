@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/tokenizer-parity — Tokenizer parity gate 3
+
+#### Added
+
+- `make_golden.py tokenizer`, which samples 10,000 Sinhala sentences with a fixed seed from four public datasets at pinned revisions, encodes them with the Python tokenizer of the reference toolchain and writes them to `golden/generated/tokenizer_corpus.json` (not committed). It also writes the committed `golden/tokenizer_manifest.json`, with the source revisions, the seed and the corpus hash, and `golden/tokenizer_cases.json`, with 17 named edge cases.
+- `web/tests/tokenizer-parity.test.js` (gate 3), which checks the corpus hash against the manifest and compares the transformers.js tokenizer with the Python tokenizer on the corpus, the edge cases and the chat prompts of the ten golden questions.
+- `docs/findings/tokenizer-parity.md` with the results of gate 3.
+- `@huggingface/transformers` 4.3.1 as the web application's runtime dependency, and `pyarrow` 26.0.0 in the reference environment for reading the corpus sources.
+
+#### Changed
+
+- `make_golden.py` now takes a target, `reference` or `tokenizer`, and `make test-web` regenerates the tokenizer corpus when its inputs change.
+- The proposal lists the chat-template finding as S9 in Table 2.
+
+#### Decisions
+
+- transformers.js 4.3.1 is pinned rather than 4.3.2, since 4.3.2 was released less than two weeks before this branch.
+- The corpus sentences are not committed, since the licenses of the four sources differ; the committed manifest makes the corpus reproducible and verifiable instead.
+
+#### Attempts
+
+- The first run of the chat-prompt checks failed with "Cannot use apply_chat_template() because tokenizer.chat_template is not set". The model stores its template in `chat_template.jinja`, which `AutoTokenizer` in transformers.js 4.3.1 does not read. `convert/sinhalallm.py` now writes a browser version of `tokenizer_config.json` with the template embedded, and the same function will package the tokenizer for the web application.
+
+#### Results
+
+- Gate 3 passes: 10,000 of 10,000 corpus sentences, 17 of 17 edge cases and 10 of 10 chat prompts match the Python tokenizer, and regeneration from scratch reproduced the committed manifest and cases.
+
 ### feat/sinhalallm-reference — Reference outputs and gate 1 for SinhalaLLM-1.7B
 
 #### Added
