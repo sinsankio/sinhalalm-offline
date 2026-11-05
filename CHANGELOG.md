@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/quantization — fp16, q8 and q4 variants
+
+#### Added
+
+- `convert/quantize.py`, which builds q8, q4 and q4-tied from the fp32 ONNX model with ONNX Runtime's block quantizer (MatMulNBits, block size 32, symmetric). q8 and q4 untie the output head into its own weight, and q4 also quantizes the embedding lookup to 4 bits.
+- `export_onnx.py --dtype fp16`, which exports the fp16 variant directly from the PyTorch model loaded in fp16.
+- Every variant is written as a complete transformers.js model folder, with the configuration and the browser tokenizer files next to `onnx/model_<suffix>.onnx`.
+- `make quantize`, which builds all variants under a 14 GB memory cap (`QUANTIZE_MEMORY`) and is part of `make ci`.
+- `docs/findings/quantization.md` with the sizes, methods and first quality signals.
+
+#### Changed
+
+- `OnnxCausalLM` in `eval_quality.py` now reads the key-value cache type from the model, so that it also runs the fp16 variant.
+- The proposal now describes the actual quantization methods, the measured sizes and the quality risk of the q4 variant, and lists `quantize.py` instead of `quantize.sh`.
+
+#### Attempts
+
+- ONNX Runtime's fp16 converter and its dynamic 8-bit quantizer were both killed at a 12 GB memory cap, since each holds the fp32 model and a converted copy at the same time. fp16 is now exported directly from PyTorch, and q8 uses the 8-bit block quantizer.
+- The first 8-bit block quantization was also killed at 12 GB (peak 12.6 GB) and succeeded under a 14 GB cap.
+- Saving q8 failed with `EncodeError: Failed to serialize proto`, since the check for the 2 GB protobuf limit called `ByteSize()`, which itself fails above 2 GiB. The check now sums the initializer sizes instead.
+- To free space on the external drive, the converted HelaAI models and checkpoints were deleted from the model store (about 600 MB); they can be regenerated from the git history.
+
+#### Results
+
+- Sizes: fp16 3.68 GB, q8 2.48 GB, q4 1.17 GB and q4-tied 1.53 GB. Only q4 fits the 1.2 GB target.
+- On the first golden question, fp16 and q8 reproduced the fp32 answer, q4-tied kept the correct answer, and q4 fell into a loop. q8 generated at 0.1 tokens per second on the CPU.
+
 ### build/content-hash-stamps — Content-based pipeline rebuilds
 
 #### Changed
