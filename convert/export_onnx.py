@@ -10,22 +10,27 @@ import numpy as np
 import onnx
 import onnx_ir as ir
 
-from sinhalallm import store_path
+from sinhalallm import store_path, write_model_folder
 
 TASK = "text-generation-with-past"
 OPSET = 18
 MODEL_FILE = "model.onnx"
-DATA_FILE = "model.onnx_data"
+OUTPUTS = {
+    "fp32": ("fp32", "model.onnx"),
+    "fp16": ("fp16/onnx", "model_fp16.onnx"),
+}
 
 
-def trace(target: Path) -> None:
+def trace(target: Path, dtype: str) -> None:
     import optimum.exporters.onnx.convert as convert
+    import torch
     from optimum.exporters.onnx import onnx_export_from_model
 
     from parity_check import load_export_model, translated_config
 
     convert.check_model_uses_external_data = lambda _: False
-    model = load_export_model(translated_config())
+    torch_dtype = torch.float16 if dtype == "fp16" else torch.float32
+    model = load_export_model(translated_config(), torch_dtype)
     onnx_export_from_model(
         model,
         output=target,
@@ -88,18 +93,16 @@ def validate_raw(raw: Path) -> int:
     return len(graph.initializer)
 
 
-def finalize(raw: Path, target: Path) -> dict:
+def finalize(raw: Path, target: Path, file_name: str) -> dict:
     model = ir.load(raw / MODEL_FILE)
     tied = tie_embedding(model)
     target.mkdir(parents=True)
-    ir.save(model, target / MODEL_FILE, external_data=DATA_FILE)
-    for name in ("config.json", "generation_config.json"):
-        shutil.copyfile(raw / name, target / name)
+    ir.save(model, target / file_name, external_data=f"{file_name}_data")
     return tied
 
 
-def trace_command(raw: Path) -> list[str]:
-    command = [sys.executable, __file__, "--trace-only", str(raw)]
+def trace_command(raw: Path, dtype: str) -> list[str]:
+    command = [sys.executable, __file__, "--dtype", dtype, "--trace-only", str(raw)]
     memory = os.environ.get("SINHALALM_EXPORT_MEMORY")
     if not memory or shutil.which("systemd-run") is None:
         return command
@@ -109,31 +112,41 @@ def trace_command(raw: Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Export SinhalaLLM-1.7B to ONNX.")
+    parser.add_argument("--dtype", choices=OUTPUTS, default="fp32")
     parser.add_argument("--trace-only", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.trace_only:
-        trace(args.trace_only)
+        trace(args.trace_only, args.dtype)
         return 0
 
-    raw, target = store_path("onnx", "raw"), store_path("onnx", "fp32")
-    for path in (raw, target):
+    subdirectory, file_name = OUTPUTS[args.dtype]
+    raw = store_path("onnx", f"raw-{args.dtype}")
+    root = store_path("onnx", args.dtype)
+    target = store_path("onnx", *subdirectory.split("/"))
+    for path in (raw, root):
         shutil.rmtree(path, ignore_errors=True)
     raw.mkdir(parents=True)
-    trace_exit = subprocess.run(trace_command(raw)).returncode
+    trace_exit = subprocess.run(trace_command(raw, args.dtype)).returncode
     initializers = validate_raw(raw)
-    tied = finalize(raw, target)
+    tied = finalize(raw, target, file_name)
+    if args.dtype == "fp32":
+        for name in ("config.json", "generation_config.json"):
+            shutil.copyfile(raw / name, root / name)
+    else:
+        write_model_folder(root)
     shutil.rmtree(raw)
 
     files = {path.name: path.stat().st_size for path in sorted(target.iterdir())}
     report = {
         "task": TASK,
         "opset": OPSET,
+        "dtype": args.dtype,
         "trace_exit_code": trace_exit,
         "initializers": initializers,
         "tied_embedding": tied,
         "files": files,
     }
-    (target / "export.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    (root / "export.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     for name, size in files.items():
         print(f"{name}: {size / 1e9:.3f} GB")
     return 0
