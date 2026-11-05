@@ -25,7 +25,8 @@ class OnnxCausalLM:
             self.inputs[self.past_names[0]].shape[1],
             self.inputs[self.past_names[0]].shape[3],
         )
-        self.empty_past = np.zeros((1, heads, 0, head_dim), dtype=np.float32)
+        dtype = np.float16 if "float16" in self.inputs[self.past_names[0]].type else np.float32
+        self.empty_past = np.zeros((1, heads, 0, head_dim), dtype=dtype)
 
     def forward(self, ids: list[int], past: dict | None = None) -> tuple[np.ndarray, dict]:
         past_length = 0 if past is None else next(iter(past.values())).shape[2]
@@ -40,7 +41,7 @@ class OnnxCausalLM:
             feeds[name] = self.empty_past if past is None else past[name]
         outputs = self.session.run(["logits", *self.present_names], feeds)
         presents = dict(zip(self.past_names, outputs[1:], strict=True))
-        return outputs[0][0], presents
+        return outputs[0][0].astype(np.float32), presents
 
     def greedy(self, ids: list[int], max_new_tokens: int) -> list[int]:
         logits, past = self.forward(ids)
