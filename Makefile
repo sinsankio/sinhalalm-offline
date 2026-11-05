@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
+.DELETE_ON_ERROR:
 
 -include local.mk
 
@@ -10,9 +11,16 @@ export SINHALALM_STORE := $(abspath $(MODEL_STORE))
 UV ?= uv
 NPM ?= npx -y npm@11.21.1
 WEB := web
-PY := $(UV) run python
+REFERENCE_ENV := .venv-reference
+PY := env -u VIRTUAL_ENV $(UV) run python
+REF_PY := env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT=$(REFERENCE_ENV) $(UV) run --no-default-groups --group reference python
 
-.PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert test-web ci
+GOLDEN_LOGITS := $(SINHALALM_STORE)/golden/reference_logits.npz
+GATE1_REPORT := $(SINHALALM_STORE)/gate1/parity.json
+GOLDEN_INPUTS := convert/sinhalallm.py convert/make_golden.py golden/prompts.json uv.lock
+GATE1_INPUTS := convert/sinhalallm.py convert/parity_check.py golden/reference.json uv.lock
+
+.PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert verify test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -20,7 +28,8 @@ help:
 setup: setup-python setup-web ## Install Python and Node dependencies
 
 setup-python:
-	$(UV) sync --frozen
+	env -u VIRTUAL_ENV $(UV) sync --frozen
+	env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT=$(REFERENCE_ENV) $(UV) sync --frozen --no-default-groups --group reference
 
 setup-web:
 	cd $(WEB) && $(NPM) ci
@@ -39,16 +48,24 @@ format: ## Apply formatters to Python and web sources
 	$(UV) run ruff check --fix convert
 	cd $(WEB) && $(NPM) run format
 
-golden: ## Regenerate golden reference outputs from the HelaAI checkpoints
-	$(PY) convert/make_golden.py
+$(GOLDEN_LOGITS): $(GOLDEN_INPUTS)
+	$(REF_PY) convert/make_golden.py
 
-check-golden: ## Verify golden reference outputs are reproducible
-	$(PY) convert/make_golden.py --check
+$(GATE1_REPORT): $(GATE1_INPUTS) $(GOLDEN_LOGITS)
+	$(PY) convert/parity_check.py
 
-convert: ## Gate 1: convert both checkpoints to Llama and verify parity
+golden: ## Regenerate golden outputs with the reference toolchain
+	$(REF_PY) convert/make_golden.py
+
+check-golden: ## Verify golden outputs are reproducible with the reference toolchain
+	$(REF_PY) convert/make_golden.py --check
+
+convert: $(GATE1_REPORT) ## Gate 1: verify the export toolchain against the reference
+
+verify: check-golden ## Rerun golden generation and gate 1 from scratch
 	$(PY) convert/parity_check.py
 
 test-web: ## Run web unit tests
 	cd $(WEB) && $(NPM) test
 
-ci: lint check-golden convert test-web ## Run the full local CI pipeline
+ci: lint convert test-web ## Run the local CI pipeline
