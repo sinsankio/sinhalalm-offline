@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/html-entity-decision — HTML entity decoding
+
+#### Decisions
+
+- The application decodes HTML entities such as `&quot;` and `&amp;` in the outputs of both models, as part of the text post-processing in Phase 2. This resolves the open question raised by F12, and the proposal's description of text post-processing (Section 4.2, D) now includes this step.
+
 ### docs/fix-f12-claim — Narrow the F12 claim
 
 #### Revised

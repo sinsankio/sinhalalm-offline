@@ -227,6 +227,7 @@ To estimate how often this happens, we replayed the same merge table under both 
 - **Input:** ZWJ is removed from user text before encoding, since the pretraining corpus kept only the Sinhala block (U+0D80–U+0DFF) and the model has never seen ZWJ as a meaningful symbol. The instruct template is kept exactly as it was used in fine-tuning, including the `<UNK>` tokens it produces, because that is the sequence the model learned to continue.
 - **Output, instruct model:** `<UNK>` directly after a token ending in a virama is decoded as ZWJ (F6, RQ3).
 - **Output, both models:** a rule-based pass restores rakaransaya (`්ර` → `්‍ර`) and yansaya (`්ය` → `්‍ය`). These rules have edge cases, so they are evaluated by native speakers (RQ3) and can be switched off in settings.
+- **Output, both models:** HTML entities such as `&quot;` and `&amp;` are decoded into the characters they stand for, since the instruct model reproduces them literally from its fine-tuning data (finding F12 of the repository audit).
 
 The following examples, all taken from the actual tokenizer and model outputs, show what each step does.
 

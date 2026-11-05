@@ -32,7 +32,7 @@ The nine audit findings of the proposal (F1–F9) were reproduced against the He
 - **F6 holds on new prompts.** All 4 `<UNK>` tokens in the golden instruct generations follow a token ending in the virama.
 - **F10: the instruct `modeling_sinhalalm.py` cannot be imported.** It loads a local checkpoint with `torch.load` at import time, so the pipeline executes only the required definitions from the hash-verified file.
 - **F11: two fine-tuning datasets are named.** The instruct config names the ELI5 dataset, while the training code names the question-answer pairs dataset.
-- **F12: ELI5 HTML entities appear in outputs.** `&quot;` is common in the ELI5 answers, absent in the question-answer pairs, and reproduced literally by the instruct model.
+- **F12: ELI5 HTML entities appear in outputs.** `&quot;` is common in the ELI5 answers, absent in the question-answer pairs, and reproduced literally by the instruct model. The application therefore decodes HTML entities in model outputs.
 
 ### Llama equivalence (gate 1)
 
