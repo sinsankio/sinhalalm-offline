@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/sinhalallm-proposal — Switch to SinhalaLLM-1.7B
+
+#### Decisions
+
+- SinhalaLLM-1.7B (`namindu94/SinhalaLLM-1.7B`, revision `b24d58b7929e1ed50f683b435a9a629a73e27af5`) replaces the HelaAI SinhalaLM models, after their question-answering quality was judged unsatisfactory and the comparison in `docs/model-comparison.md` was reviewed.
+- The application provides question answering only, since SinhalaLLM-1.7B is published as a single instruction-tuned checkpoint. The text-continuation mode (former FR1) was dropped, and the functional requirements were renumbered.
+- The targets were raised for a 1.74B model: at most 1.2 GB of download for the default variant, at most 2 GB of peak tab memory with a 1,024-token context cap, at most 10 s of warm load, a time to first token of at most 1 s on WebGPU and 3 s on WASM, and at least 20 tokens per second on WebGPU and 5 on multi-threaded WASM.
+- The HelaAI pipeline code will be replaced with SinhalaLLM equivalents, while the HelaAI findings stay as a record of the previous model.
+
+#### Changed
+
+- The proposal was revised in place for SinhalaLLM-1.7B. Its structure and research intentions are unchanged, while the background, the inspection findings (S1–S8), RQ3, the design of the tokenizer and text processing, gate 1, gate 4, the project structure, the targets and the risks now describe the new model.
+- RQ3 changed from recovering the ZWJ that the HelaAI tokenizer lost to repairing the ZWJ in user input and preserving it end to end.
+- `FINDINGS.md` and the README now describe SinhalaLLM-1.7B, and mark the HelaAI findings as belonging to the previous model.
+
+#### Added
+
+- `docs/findings/model-selection.md`, which records why the HelaAI models were replaced and how SinhalaLLM-1.7B was selected.
+- `docs/findings/sinhalallm-inspection.md`, which reports the inspection of the SinhalaLLM-1.7B repository. Its central finding is that `transformers` 4.57.6, which the ONNX exporter requires, loads the configuration with a RoPE base of 10000 instead of 130000, without any error.
+
 ### build/external-model-store — Model store on an external drive
 
 #### Added
