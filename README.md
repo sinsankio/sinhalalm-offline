@@ -24,14 +24,14 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Project bootstrap and toolchain checks | Done |
-| 1 | Model selection, reference outputs and configuration translation (gate 1) | In progress |
-| 2 | Tokenizer parity (gate 3) and ZWJ handling | Planned |
+| 1 | Model selection, reference outputs and configuration translation (gate 1) | Done |
+| 2 | Tokenizer parity (gate 3) and ZWJ handling | Next |
 | 3 | ONNX export (gate 2), quantization and RQ1 | Planned |
 | 4 | Browser application, offline mode and gate 4 | Planned |
 | 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
 | 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned |
 
-Research results are summarized in [FINDINGS.md](FINDINGS.md), the outputs of both models on the golden prompts are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
+Research results are summarized in [FINDINGS.md](FINDINGS.md), the answers of SinhalaLLM-1.7B on the golden questions are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ### Project structure
 
@@ -55,13 +55,16 @@ The project requires `uv`, Python 3.12, Node.js 22 or later and `make`. npm 11 i
 
 ```bash
 make setup   # install Python and Node dependencies
-make golden  # regenerate golden reference outputs
-make convert # gate 1
+make golden  # regenerate golden outputs with the reference toolchain (transformers 5.19.0)
+make convert # gate 1: verify the export toolchain (transformers 4.57.6) against the reference
+make verify  # rerun golden generation and gate 1 from scratch
 make ci      # run the local CI pipeline
 make help    # list all targets
 ```
 
-The first `make golden` or `make ci` downloads the model checkpoints at pinned revisions with verified SHA-256 hashes. Until the pipeline is replaced for SinhalaLLM-1.7B, these targets still run the previous HelaAI pipeline.
+The first `make golden` or `make ci` downloads SinhalaLLM-1.7B (about 3.5 GB) at a pinned revision and verifies the SHA-256 hash of every file. The golden outputs and gate 1 each take about three minutes on a CPU, so `make ci` reruns them only when their inputs change, while `make verify` reruns both from scratch.
+
+The pipeline uses two Python environments from the same `uv` project, since the model was saved with `transformers` 5.19.0 while the ONNX exporter requires 4.57.6. `make setup` creates both: `.venv` for the export toolchain and `.venv-reference` for the reference.
 
 ### Model store
 
@@ -71,7 +74,7 @@ Downloaded checkpoints, converted models and generated logits are kept in a mode
 MODEL_STORE := /media/<user>/<drive>/sinhalalm-web
 ```
 
-The store is read and written only while a pipeline target runs, so the drive needs to be mounted only for `make golden`, `make convert` and `make ci`. If the store is not available, these targets stop with a message instead of downloading the models again.
+The store is read and written only while a pipeline target runs, so the drive needs to be mounted only for the pipeline targets, such as `make golden`, `make convert`, `make verify` and `make ci`. If the store is not available, these targets stop with a message instead of downloading the models again.
 
 ### Development workflow
 
