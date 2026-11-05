@@ -64,7 +64,7 @@ make ci      # run the local CI pipeline
 make help    # list all targets
 ```
 
-The first `make golden` or `make ci` downloads SinhalaLLM-1.7B (about 3.5 GB) at a pinned revision and verifies the SHA-256 hash of every file. The golden outputs and gate 1 each take about three minutes on a CPU, so `make ci` reruns them only when their inputs change, while `make verify` reruns both from scratch.
+The first `make golden` or `make ci` downloads SinhalaLLM-1.7B (about 3.5 GB) at a pinned revision and verifies the SHA-256 hash of every file. The golden outputs, gate 1, the ONNX export and gate 2 each take minutes on a CPU, so `make ci` reruns a step only when the content of its inputs changes. Content hashes of the inputs are kept in `build/stamps/`, so a checkout or merge that only changes file times reruns nothing, while `make verify` reruns golden generation and gate 1 from scratch.
 
 The pipeline uses two Python environments from the same `uv` project, since the model was saved with `transformers` 5.19.0 while the ONNX exporter requires 4.57.6. `make setup` creates both: `.venv` for the export toolchain and `.venv-reference` for the reference.
 
