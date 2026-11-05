@@ -26,7 +26,7 @@ GATE1_REPORT := $(SINHALALM_STORE)/gate1/parity.json
 ONNX_FP32 := $(SINHALALM_STORE)/onnx/fp32/export.json
 GATE2_REPORT := $(SINHALALM_STORE)/onnx/fp32/gate2.json
 ONNX_FP16 := $(SINHALALM_STORE)/onnx/fp16/export.json
-QUANTIZED := $(foreach variant,q4 q4-tied q8,$(SINHALALM_STORE)/onnx/$(variant)/quantization.json)
+QUANTIZED := $(foreach variant,q4-v0 q4-v0-small q8,$(SINHALALM_STORE)/onnx/$(variant)/quantization.json)
 
 COMMON_INPUTS := convert/sinhalallm.py uv.lock
 GOLDEN_INPUTS := $(COMMON_INPUTS) convert/make_golden.py golden/prompts.json
@@ -50,7 +50,7 @@ $(eval $(call content_stamp,export,$(EXPORT_INPUTS)))
 $(eval $(call content_stamp,gate2,$(GATE2_INPUTS)))
 $(eval $(call content_stamp,quantize,$(QUANTIZE_INPUTS)))
 
-.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize verify test-web ci
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize rq1 verify test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -111,7 +111,14 @@ convert: $(GATE1_REPORT) ## Gate 1: verify the export toolchain against the refe
 
 onnx: $(GATE2_REPORT) ## Export fp32 ONNX and run gate 2 against the reference
 
-quantize: $(ONNX_FP16) $(QUANTIZED) ## Build the fp16, q8, q4 and q4-tied variants
+quantize: $(ONNX_FP16) $(QUANTIZED) ## Build the fp16, q8 and q4 candidate variants
+
+rq1: quantize ## RQ1: perplexity and answer agreement of every candidate variant (slow)
+	$(CAPPED_PY) convert/eval_quality.py rq1 --variant fp32
+	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q4-v0
+	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q4-v0-small
+	$(CAPPED_PY) convert/eval_quality.py rq1 --variant fp16 --sentences 200 --questions 3
+	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q8 --sentences 50 --questions 1
 
 verify: check-golden ## Rerun golden generation and gate 1 from scratch
 	$(PY) convert/parity_check.py
