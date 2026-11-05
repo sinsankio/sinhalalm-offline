@@ -60,7 +60,17 @@ make ci      # run the local CI pipeline
 make help    # list all targets
 ```
 
-The first `make golden` or `make ci` downloads both HelaAI checkpoints (about 360 MB) into `build/hf/`, at pinned revisions with verified SHA-256 hashes.
+The first `make golden` or `make ci` downloads the model checkpoints at pinned revisions with verified SHA-256 hashes.
+
+### Model store
+
+Downloaded checkpoints, converted models and generated logits are kept in a model store outside the repository, since they are too large for the internal disk. The store defaults to `build/`, and a local `local.mk` file (not committed) can point it to another location, such as an external drive:
+
+```make
+MODEL_STORE := /media/<user>/<drive>/sinhalalm-web
+```
+
+The store is read and written only while a pipeline target runs, so the drive needs to be mounted only for `make golden`, `make convert` and `make ci`. If the store is not available, these targets stop with a message instead of downloading the models again.
 
 ### Development workflow
 
