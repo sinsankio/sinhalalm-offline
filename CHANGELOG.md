@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### spike/toolchain-versions — Toolchain check
+
+#### Added
+
+- `docs/findings/toolchain.md`, which reports an end-to-end run of export, ONNX Runtime parity, transformers.js 4.3.2 generation and quantization on a tiny Llama model with the SinhalaLM configuration, together with the current Hugging Face Spaces constraints and a WebGPU probe.
+- The first entry in `FINDINGS.md`.
+
+#### Decisions
+
+- The export toolchain is pinned to `transformers` 4.57.6, `optimum` 2.1.0 and `optimum-onnx` 0.1.0, together with `accelerate` 1.15.0 and `onnx-ir` 1.1.0. The pins are added to `pyproject.toml` in Phase 1, when the first conversion code needs them.
+- Quantization uses ONNX Runtime's own tools, since transformers.js version 4 no longer ships its quantize script.
+- The transformers.js version is pinned at the start of Phase 4, since 4.3.2 is not yet two weeks old.
+- The hosting checks that need a live Space move from Phase 0 to Phase 5, since Hugging Face credentials are provided at deployment time.
+- FLORES+ perplexity moves from the golden-reference step in Phase 1 to RQ1 in Phase 3, for the same reason, since FLORES+ is gated on Hugging Face.
+- `pyproject.toml`, `uv.lock` and `.python-version` stay at the repository root rather than under `convert/`, since `uv` resolves the environment from the root and the Makefile runs all Python tools through it.
+
+#### Revised
+
+- The README opening previously stated that SinhalaLM is small enough to run entirely inside a web browser. It now follows the proposal's wording, which describes the models as a strong candidate for client-side inference, since that claim is only verified in Phase 4.
+
 ### chore/bootstrap — Project bootstrap
 
 #### Added

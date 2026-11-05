@@ -1,6 +1,6 @@
 # SinhalaLM Web — Offline Sinhala Question Answering in the Browser
 
-For a long period of time, running a language model meant sending text to a server and waiting for a response. SinhalaLM changes that equation for Sinhala: it is a compact GPT-style model from HelaAI with only 32.85M unique parameters, which is small enough to run entirely inside a web browser.
+For a long period of time, running a language model meant sending text to a server and waiting for a response. HelaAI recently released SinhalaLM, a GPT-style Sinhala language model trained from scratch, together with an instruction-tuned question-answering variant. Both models are small (32.85M unique parameters), which makes them a strong candidate for client-side inference.
 
 This project runs both SinhalaLM checkpoints fully offline in the browser. The base model continues Sinhala text, and the instruction-tuned model answers single-turn Sinhala questions. After the first load, no server and no network connection are needed.
 
@@ -21,12 +21,12 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Project bootstrap and toolchain checks | In progress |
-| 1 | Reference outputs and Llama conversion (gate 1) | Planned |
+| 0 | Project bootstrap and toolchain checks | Done |
+| 1 | Reference outputs and Llama conversion (gate 1) | Next |
 | 2 | Tokenizer port (gate 3) and ZWJ handling | Planned |
 | 3 | ONNX export (gate 2), quantization and RQ1 | Planned |
 | 4 | Browser application, offline mode and gate 4 | Planned |
-| 5 | Deployment to a Hugging Face static Space | Planned |
+| 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
 | 6 | Benchmarks (RQ2) and ZWJ recovery evaluation (RQ3) | Planned |
 
 Research results are summarized in [FINDINGS.md](FINDINGS.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
