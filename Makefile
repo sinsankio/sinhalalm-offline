@@ -7,7 +7,7 @@ NPM ?= npx -y npm@11.21.1
 WEB := web
 PY := $(UV) run python
 
-.PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden test-web ci
+.PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -40,7 +40,10 @@ golden: ## Regenerate golden reference outputs from the HelaAI checkpoints
 check-golden: ## Verify golden reference outputs are reproducible
 	$(PY) convert/make_golden.py --check
 
+convert: ## Gate 1: convert both checkpoints to Llama and verify parity
+	$(PY) convert/parity_check.py
+
 test-web: ## Run web unit tests
 	cd $(WEB) && $(NPM) test
 
-ci: lint check-golden test-web ## Run the full local CI pipeline
+ci: lint check-golden convert test-web ## Run the full local CI pipeline
