@@ -2,6 +2,11 @@ SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
+-include local.mk
+
+MODEL_STORE ?= build
+export SINHALALM_STORE := $(abspath $(MODEL_STORE))
+
 UV ?= uv
 NPM ?= npx -y npm@11.21.1
 WEB := web

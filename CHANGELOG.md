@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### build/external-model-store — Model store on an external drive
+
+#### Added
+
+- A configurable model store for downloaded checkpoints, converted models and generated logits. It defaults to `build/`, and the uncommitted `local.mk` file can point `MODEL_STORE` to another location. The Makefile passes it to the pipeline as `SINHALALM_STORE`.
+- The pipeline stops with "model store ... is not available; mount it or set MODEL_STORE" when an external store is not mounted, instead of downloading everything again to a new location.
+
+#### Decisions
+
+- The store lives on the external drive at `/media/sinsankio/QrioMatrix/sinhalalm-web`, since the internal disk has about 5 GB free and the SinhalaLLM-1.7B pipeline needs about 18 GB. The drive is formatted as exFAT, which does not support symbolic links, so checkpoints are downloaded as plain files into `hf/<repository>/` rather than into the Hugging Face cache.
+- The drive had 21 GB free when the store was created, which leaves little headroom beyond the expected 18 GB.
+
 ### docs/model-comparison — Alternative model comparison
 
 #### Added

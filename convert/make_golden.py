@@ -14,12 +14,12 @@ from helaai import (
     prompt_ids,
     reference_greedy,
     reference_namespace,
+    store_path,
 )
 
 GOLDEN_DIR = ROOT / "golden"
 PROMPTS_PATH = GOLDEN_DIR / "prompts.json"
 REFERENCE_PATH = GOLDEN_DIR / "reference.json"
-LOGITS_DIR = GOLDEN_DIR / "generated"
 OUTPUTS_DOC_PATH = ROOT / "docs" / "model-outputs.md"
 MAX_NEW_TOKENS = 40
 TOP_K = 5
@@ -190,8 +190,9 @@ def main() -> int:
             path.write_text(text, encoding="utf-8")
             print(f"wrote {path.relative_to(ROOT)}")
 
-    LOGITS_DIR.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(LOGITS_DIR / "reference_logits.npz", **logits)
+    logits_dir = store_path("golden")
+    logits_dir.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(logits_dir / "reference_logits.npz", **logits)
     return 0
 
 
