@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/golden-reference — Golden reference outputs
+
+#### Added
+
+- `convert/helaai.py`, which downloads both HelaAI checkpoints at pinned commit revisions, verifies the SHA-256 hash of every file and loads the reference `SinhalaGPT` model and `FastBPETokenizer`.
+- `convert/make_golden.py`, which writes `golden/reference.json` with the prompt token IDs, the top-5 next-token IDs and the 40-token greedy generations of both models, together with the full prompt logits in `golden/generated/reference_logits.npz`.
+- `golden/prompts.json` with four base-model prompts and four instruct-model questions, including the question from the instruct model card.
+- `make golden` and `make check-golden`. `make ci` now regenerates the golden outputs and fails if they differ from the committed file.
+- Python dependencies for the reference model: `torch` 2.14.1 (CPU), `transformers` 4.57.6, `huggingface-hub` 0.36.2, `safetensors` 0.8.0 and `numpy` 2.5.4.
+
+#### Decisions
+
+- The instruct repository's `modeling_sinhalalm.py` cannot be imported as a module, since it is a training script that loads a local checkpoint with `torch.load` at import time and exits when the checkpoint is missing. Rather than importing it, `helaai.py` parses the pinned file and executes only the tokenizer, model and prompt-template definitions, so that the reference stays the exact upstream source without running any of its training code.
+- `helaai.py` is a shared module inside `convert/` that is not listed in Section 5.8 of the proposal, since both `make_golden.py` and `parity_check.py` need the same reference loader.
+- The `uv` configuration sets `exclude-newer` to 2026-10-22, so that transitive dependencies also follow the two-week pinning rule.
+- The base and instruct repositories ship the same `bpe_vocabulary.json` (identical SHA-256), so a single tokenizer serves both models.
+- The reference greedy generation recomputes the full sequence at every step and stops at `<EOS>` or after 40 tokens, which is the same stopping rule the Llama comparison in gate 1 uses.
+
 ### spike/toolchain-versions — Toolchain check
 
 #### Added
