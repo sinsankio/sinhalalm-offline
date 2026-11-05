@@ -31,7 +31,7 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
 | 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned |
 
-Research results are summarized in [FINDINGS.md](FINDINGS.md), the answers of SinhalaLLM-1.7B on the golden questions are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
+Research results are summarized in [FINDINGS.md](FINDINGS.md), the answers of the quantization candidates are compared in [docs/quantization-comparison.md](docs/quantization-comparison.md), the answers of SinhalaLLM-1.7B on the golden questions are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ### Project structure
 
@@ -59,7 +59,8 @@ make golden  # regenerate golden outputs and tokenizer cases with the reference 
 make convert # gate 1: verify the export toolchain (transformers 4.57.6) against the reference
 make test-web # web unit tests, including gate 3 (tokenizer parity on 10,000 sentences)
 make onnx    # export fp32 ONNX and run gate 2 (needs about 11.5 GB of free memory)
-make quantize # build the fp16, q8, q4 and q4-tied variants (needs about 13 GB of free memory)
+make quantize # build the fp16, q8 and q4 candidate variants (needs about 13 GB of free memory)
+make rq1     # RQ1: perplexity and answer agreement of every candidate (slow; needs FLORES+ access)
 make verify  # rerun golden generation and gate 1 from scratch
 make ci      # run the local CI pipeline
 make help    # list all targets

@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/rq1-quality — RQ1 quantization quality
+
+#### Added
+
+- `eval_quality.py rq1`, which measures perplexity and bits per character on the FLORES+ `sin_Sinh` devtest split (pinned revision and file hash), the top-1 agreement of the prompt logits and the greedy agreement of the ten golden answers against fp32. Per-sentence scores are stored, so that variants measured on a subset can be compared on the same sentences.
+- Research variants in `quantize.py`: q4-head and q4-emb for the head and embedding ablation, q4-asym, q4-b16 and q4-hqq for the method screen, and the two candidates q4-v0 and q4-v0-small, which keep the value projection of layer 0 in fp32.
+- `make rq1`, which evaluates every candidate variant. `make quantize` now builds fp16, q8, q4-v0 and q4-v0-small.
+- `docs/findings/rq1-quantization.md` with the results and the investigation, and `docs/quantization-comparison.md` with the candidates' answers next to the fp32 answers.
+
+#### Attempts
+
+- The head and embedding ablation, asymmetric quantization, block size 16 and HQQ were each tried to close the 4-bit gap, and none brought the loss below +164%.
+- Two possible pipeline faults were ruled out: forcing fp32 compute in the 4-bit kernel gave identical perplexity, and the dequantized 4-bit weights had a lower error than a reference round-to-nearest implementation.
+- A sensitivity scan that kept one group of weight matrices in fp32 at a time found that the value projection of layer 0 alone causes most of the loss.
+- The first evaluation of the two candidates did not start, since a line in `quantize.py` exceeded the length limit of the linter.
+- A helper script named `gguf.py` shadowed the `gguf` package during the GGUF reference measurement and was renamed.
+
+#### Results
+
+- fp32 reached a perplexity of 113.2 (1.695 bits per character) on the 1,012 devtest sentences. fp16 (+0.0%) and q8 (+1.2%) stay within the 2% gate; the plain 4-bit variants lose +164% to +248%.
+- q4-v0 (1.54 GB) loses +32.7% and q4-v0-small (1.18 GB) +39.6%, while the author's Q4_K_M GGUF loses +51.5% on the same 50 sentences.
+
+#### Open
+
+- The variant to ship by default, and the quality gate that replaces the 2% margin, which no 4-bit variant of this model can meet.
+
 ### feat/quantization — fp16, q8 and q4 variants
 
 #### Added
