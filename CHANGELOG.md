@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/fix-f12-claim — Narrow the F12 claim
+
+#### Revised
+
+- F12 in `docs/findings/repository-audit.md` previously stated that HTML entities most likely explain all ELI5-style artifacts noted in F8. The entity counts only support the `&quot;` and `&` artifacts, and `L;L2` did not appear in any of the 300 sampled rows, so the claim is now limited to the entities.
+
 ### docs/audit-findings — Repository audit and Llama equivalence
 
 #### Added
