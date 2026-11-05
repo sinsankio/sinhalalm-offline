@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/text-processing — ZWJ normalization and entity decoding
+
+#### Added
+
+- `web/src/text/zwj.js` with `normalizeZwj`, which adds the ZWJ in the 15 conjunct clusters that the model learned with it and removes it from all other `්ර` and `්ය` clusters.
+- `web/src/text/entities.js` with `decodeEntities` and a streaming decoder that holds back a possible entity at the end of a chunk until the next chunk arrives.
+- `web/tests/text.test.js`, which covers both modules and checks the 15 clusters against the tokenizer.
+- `docs/findings/zwj-normalization.md`, which derives the 15 clusters from the vocabulary and compares three input rules on the tokenizer corpus.
+
+#### Changed
+
+- The proposal now describes `normalizeZwj` instead of `repairZwj`: S3, the text processing in Section 4.2 (D), its two examples and Figure 2, the request lifecycle, RQ3, the worker code, the project structure, the tests and the risks.
+- S3 in `docs/findings/sinhalallm-inspection.md` now lists the 15 clusters instead of only the two cluster types.
+
+#### Attempts
+
+- The planned rule added the ZWJ after every virama that is followed by ර or ය. Measured on the 10,000-sentence tokenizer corpus, it increased the token count by 0.26%, since the vocabulary learned clusters such as ව්ය and ත්ය only without the ZWJ. The vocabulary contains exactly 15 clusters with the ZWJ, none of which also appears without it. A rule limited to these clusters reduced the tokens by 0.11%, and the final rule, which also removes the ZWJ from all other clusters, reduced them by 1.57% on the corpus and by 10.4% on text typed without the ZWJ.
+
+#### Open
+
+- The model most likely writes clusters such as සත්ය without the ZWJ, so restoring the ZWJ in the output is a candidate step for RQ3, pending native-speaker evaluation.
+
 ### feat/tokenizer-parity — Tokenizer parity gate 3
 
 #### Added
