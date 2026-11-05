@@ -63,7 +63,7 @@ The token count needs one correction. The proposal states that encoding the inst
 - **F4.** The tokenizer regression test in Section 6.2 of the proposal changes from "the instruct template → 37 tokens with three `<UNK>`" to two cases: the template alone gives 24 tokens with two `<UNK>`, and the template with the model card question gives 37 tokens with three.
 - **F6.** Decoding `<UNK>` after a virama as ZWJ remains the candidate recovery method, and the larger RQ3 sample is still required.
 - **F10.** The reference implementation is executed from the pinned upstream source, not from a copy, so gates 1 and 3 always compare against the exact code that trained the models.
-- **F12.** Decoding HTML entities (for example, `&quot;` to `"`) in instruct outputs is a candidate post-processing step alongside ZWJ restoration. `[[NEEDS INPUT: whether to add HTML entity decoding to the output post-processing]]`
+- **F12.** The application decodes HTML entities such as `&quot;` and `&amp;` in model outputs, as part of the text post-processing alongside ZWJ restoration.
 
 ### 6. Suggested upstream fixes
 
