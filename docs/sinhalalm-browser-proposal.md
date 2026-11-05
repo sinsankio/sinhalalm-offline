@@ -63,7 +63,7 @@ SinhalaLLM-1.7B was selected, since it is the only screened model whose answers 
 
 Before designing the system, we inspected the configuration files, the tokenizer files, the chat template, the model card and the GGUF metadata of the SinhalaLLM-1.7B repository at revision `b24d58b7929e1ed50f683b435a9a629a73e27af5`. Table 2 summarizes the findings and how each one affects the design.
 
-*Table 2: Inspection findings and their impact on the browser system.*
+*Table 2: Inspection and early-check findings and their impact on the browser system.*
 
 | # | Finding | Evidence | Design impact |
 |---|---|---|---|
@@ -75,8 +75,9 @@ Before designing the system, we inspected the configuration files, the tokenizer
 | S6 | Two tokens end generation. | `generation_config.json` lists `eos_token_id` as `[2, 0]`, which are `<|im_end|>` and `<|endoftext|>`, while `config.json` lists only 0. `config.json` also sets `use_cache` to false. | Generation stops at either token, and the export enables the key-value cache explicitly. |
 | S7 | The model is large for a browser. | 1,740,474,368 parameters, of which the tied 63,360 × 2,048 embedding is 7.5%. The published `model.safetensors` is 3.48 GB in bfloat16; in fp32, the model is about 6.96 GB. | Only quantized variants are shipped, and the fp32 browser comparison is replaced by a same-file comparison (gate 4). |
 | S8 | Factual accuracy is limited. | In the comparison, several answers did not match the reference answers, and two long answers became repetitive. The model card also states that the model often gets facts wrong from memory. | The application exposes a repetition penalty and shows a clear notice that answers are unverified. |
+| S9 | The browser tokenizer does not find the chat template. | The model stores its ChatML template in `chat_template.jinja`, the layout of `transformers` 5.19.0. In transformers.js 4.3.1, `AutoTokenizer` reads the template only from `tokenizer_config.json`. | The browser packaging embeds the template in `tokenizer_config.json`, and gate 3 checks the resulting prompts against Python. |
 
-In other words, the inspection changes the project from "port a custom model and its tokenizer" into "load a standard model correctly and keep Sinhala text intact". This is because S4 removes the tokenizer port, while S1 and S2 move the risk into configuration and text handling, which is where a Sinhala-specific system is most likely to fail silently.
+In other words, the inspection changes the project from "port a custom model and its tokenizer" into "load a standard model correctly and keep Sinhala text intact". This is because S4 removes the tokenizer port, while S1, S2 and S9 move the risk into configuration, file layout and text handling, which is where a Sinhala-specific system is most likely to fail silently.
 
 ---
 
@@ -143,7 +144,7 @@ The components are described below.
 
 **A) Reference load and configuration translation.** The published checkpoint is already a `LlamaForCausalLM`, so no tensor conversion is needed. However, the ONNX exporter requires `transformers` 4.57.6, which reads the configuration differently from `transformers` 5.19.0, the version the model was saved with (S1). This component writes a configuration in the 4.57 format, with `rope_theta` set to 130,000 and `use_cache` enabled (S6), and gate 1 verifies that the translated load produces the same logits as the author's toolchain. In the context of our offline reader, this step matters because a model with the wrong RoPE base still loads and generates fluent-looking text, so the error would otherwise reach the reader unnoticed.
 
-**B) Tokenizer.** The browser uses the transformers.js tokenizer built from the published `tokenizer.json`, rather than a custom port. This is because the early check in S4 showed identical token IDs on 210 inputs, including the Sinhala pre-tokenizer's combining-mark and ZWJ classes. Gate 3 extends this check to 10,000 sentences, so that the browser produces exactly the token IDs the model was trained on.
+**B) Tokenizer.** The browser uses the transformers.js tokenizer built from the published `tokenizer.json`, rather than a custom port. This is because the early check in S4 showed identical token IDs on 210 inputs, including the Sinhala pre-tokenizer's combining-mark and ZWJ classes. Gate 3 extends this check to 10,000 sentences, so that the browser produces exactly the token IDs the model was trained on. Since transformers.js does not read the separate chat-template file (S9), the browser packaging embeds the template in `tokenizer_config.json`.
 
 **C) Inference worker.** A dedicated Web Worker loads the model through transformers.js, selects the WebGPU or WASM backend, runs generation and streams text back. A software WebGPU adapter is treated as unavailable, since it is most likely slower than multi-threaded WASM. This ensures that the page stays responsive while the model generates (NFR3).
 
