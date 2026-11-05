@@ -16,7 +16,7 @@ In this proposal, we present an end-to-end plan to run both SinhalaLM checkpoint
 
 Sinhala is spoken by over 20 million people, yet it remains comparatively under-served by mainstream multilingual language models. The common way to bring LLM capability to Sinhala has been continual pretraining of a large existing model, which requires substantial GPU memory and incurs high inference cost. SinhalaLM explores the opposite direction: a compact model sized to the Sinhala data actually available, and roughly 240× smaller than an 8B-parameter alternative.
 
-A model of this size does not just reduce server cost, but opens the possibility of removing the server altogether. Consider a scenario where a reader opens a web page once on Wi-Fi, installs it to the home screen, and later asks a Sinhala question while having no connection at all. In this proposal, we use this **offline reader** as the running example, and every design decision is evaluated against whether it serves that reader.
+A model of this size does not just reduce server cost, but opens the possibility of removing the server altogether. Consider a scenario where a reader opens a web page once on Wi-Fi, installs it as an app, and later asks a Sinhala question while having no connection at all. In this proposal, we use this **offline reader** as the running example, and every design decision is evaluated against whether it serves that reader.
 
 Rather than treating the browser deployment as a packaging exercise, we treat it as a sequence of verifiable transformations. Each step (weight conversion, tokenization, ONNX export, quantization, in-browser execution) must reproduce the output of the previous step within a defined tolerance before the next step begins.
 
@@ -53,7 +53,7 @@ Before designing the system, we inspected the configuration files, the safetenso
 | F1 | Stored tensors total 44.72M, but unique trainable parameters are 32.85M. | Safetensors header: 25,169,920 (8 layers) + 7,680,000 (`tok_emb`) + 512 (`ln_f`) = 32,850,432. Extra: `lm_head` 7,680,000 + RoPE `cos`/`sin` tables 4,194,304 = 11,874,304. `torch.equal(lm_head, tok_emb)` returns `True`, and the stored RoPE tables match the recomputed ones. | The instruct card's explanation ("task-specific components") is incorrect; both checkpoints share the same structure. The browser model only needs 32.85M parameters, since the duplicate head and the RoPE tables are dropped during conversion. |
 | F2 | The base repository's `modeling_sinhalalm.py` is a download-and-run script that imports `SinhalaGPT` from itself, so the card's loading code fails. | The file defines no model or tokenizer classes. The instruct repository's file contains the full classes. | Both checkpoints are loaded with the instruct repository's classes, which fit the base weights (identical tensor shapes). |
 | F3 | `tokenizer.json` cannot be loaded. | The `tokenizers` library raises `Token 'න්</w>' out of vocabulary`; 5,814 of 14,811 merges reference tokens that are not in the vocabulary. In addition, Hugging Face BPE attaches the `</w>` suffix to the last character, while `FastBPETokenizer` treats `</w>` as a separate symbol, so even a repaired file would not reproduce the same IDs. | `FastBPETokenizer` with `bpe_vocabulary.json` is the single source of truth. The browser uses a JavaScript port of it, verified by parity tests (Section 5.4). |
-| F4 | The zero-width joiner (U+200D) is mapped to `<UNK>`. | 0 of 15,000 vocabulary entries contain ZWJ. Encoding the instruct template yields 37 tokens, 3 of which are `<UNK>`; `ශ්‍රී` becomes `ශ්`, `<UNK>`, `ර`, `ී`. `decode()` drops `<UNK>`, which is why outputs show `ක්ර` instead of `ක්‍ර`. | Input normalization and output post-processing must handle ZWJ explicitly (Section 4.2, D). |
+| F4 | The zero-width joiner (U+200D) is mapped to `<UNK>`. | 0 of 15,000 vocabulary entries contain ZWJ. Encoding the instruct template yields 24 tokens, 2 of which are `<UNK>`, and 37 tokens with 3 `<UNK>` together with the model card's example question; `ශ්‍රී` becomes `ශ්`, `<UNK>`, `ර`, `ී`. `decode()` drops `<UNK>`, which is why outputs show `ක්ර` instead of `ක්‍ර`. | Input normalization and output post-processing must handle ZWJ explicitly (Section 4.2, D). |
 | F5 | The architecture is equivalent to Llama. | Rotate-half RoPE with θ = 10000 and head dimension 64; pre-norm RMSNorm; SwiGLU as `w3(silu(w1 x) * w2 x)`; no biases; 8 query and 8 key-value heads; tied embeddings. After converting to `LlamaForCausalLM`, the maximum absolute logit difference is 0.00 on four prompts and a random 512-token input, for both checkpoints, and 40-token greedy generations are identical with key-value caching. | The standard Llama export path (Optimum to ONNX, transformers.js runtime) can be used instead of a custom runtime. |
 | F6 | The instruct model generates `<UNK>` where a ZWJ most likely belongs. | Across four greedy generations, the instruct model emitted 6 `<UNK>` tokens, 5 of which directly followed a token ending in the virama (`්`), in words such as `සත්ය`, `ප්රධාන` and `ක්රියාත්මක`. The base model emitted none. | Decoding `<UNK>` after a virama as ZWJ is a candidate recovery method, to be confirmed on a larger sample (RQ3). |
 | F7 | The base configuration and the model card disagree. | `config.json` lists `block_size: 256` and `dropout: 0.3`; the card lists 512 and 0.2. Wall time × average throughput (17,878 s × 555,300 tokens/s = 9.93B tokens) matches 150,000 × 128 × 512 = 9.83B, which supports 512. | The browser model uses `max_position_embeddings = 512`, and the application caps prompt plus generation at 512 tokens. |
@@ -75,7 +75,7 @@ pie showData
 
 In other words, the audit changes the project from "port a custom model" into "export a Llama model and get the tokenizer exactly right". This is because F5 removes most of the runtime engineering, while F3 and F4 move the risk into text handling, which is where a Sinhala-specific system is most likely to fail.
 
-The conversion and parity check behind F1, F5 and F6 is provided as `tools/parity_check.py` and can be reproduced on a CPU.
+The conversion and parity check behind F1, F5 and F6 is implemented in `convert/parity_check.py` and can be reproduced on a CPU.
 
 ---
 
@@ -84,7 +84,7 @@ The conversion and parity check behind F1, F5 and F6 is provided as `tools/parit
 Since the application itself is an engineering artifact, we frame the measurable parts of the work as research questions. This ensures that the results can be reported, compared and reproduced by others.
 
 - **RQ1 (Quantization):** How does perplexity on held-out Sinhala text change across fp32, fp16, int8 (q8) and 4-bit (q4) variants, and what is the smallest variant whose quality stays within an acceptable margin of fp32?
-- **RQ2 (Latency):** How do download size, cold and warm load time, time to first token and generation speed differ between the WebGPU and WASM backends across desktop and mobile devices? For a model of this size, does WebGPU provide a measurable advantage over multi-threaded WASM?
+- **RQ2 (Latency):** How do download size, cold and warm load time, time to first token and generation speed differ between the WebGPU and WASM backends across desktop and laptop computers? For a model of this size, does WebGPU provide a measurable advantage over multi-threaded WASM?
 - **RQ3 (ZWJ recovery):** Can the ZWJ lost during tokenization be recovered at decoding time, by decoding `<UNK>` after a virama as ZWJ for the instruct model (F6), and by rule-based restoration of rakaransaya and yansaya for both models? How often do native speakers judge the restored text as correct?
 
 ---
@@ -108,7 +108,7 @@ Since the application itself is an engineering artifact, we frame the measurable
 - **NFR2 (Fidelity)** — Every conversion step passes its parity gate (Section 6).
 - **NFR3 (Responsiveness)** — Inference never blocks the user interface thread.
 - **NFR4 (Portability)** — The application runs on WebGPU where available and falls back to WASM everywhere else.
-- **NFR5 (Footprint)** — Total download size and peak memory fit mid-range phones. `[[NEEDS INPUT: target device list and acceptable download size]]`
+- **NFR5 (Footprint)** — Total download size and peak memory fit desktop and laptop computers: at most 70 MB per model for the default variant, and at most 500 MB of peak tab memory (Section 6.6).
 - **NFR6 (Transparency)** — The interface states the model's intended use and limitations as given in the model cards.
 
 #### 4.2 Architecture overview
@@ -243,7 +243,7 @@ The following examples, all taken from the actual tokenizer and model outputs, s
 ```mermaid
 flowchart LR
   U["User question<br/>may contain ZWJ, e.g. ශ්‍රී"] --> S["stripZwj"]
-  S --> TPL["Insert into fine-tuning template<br/>template keeps its 3 UNK tokens"]
+  S --> TPL["Insert into fine-tuning template<br/>template keeps its 2 UNK tokens"]
   TPL --> ENC["encode with FastBPE<br/>no UNK from user text"]
   ENC --> M["Model generates IDs"]
   M --> Q{"UNK right after a token<br/>ending in virama ්?"}
@@ -336,7 +336,7 @@ sequenceDiagram
 
 The license sections of both repositories are placeholders (F9). Before publishing converted weights, we contact the HelaAI authors to ask for permission, or offer to contribute the ONNX artifacts to their repositories through a pull request. The audit findings F1–F4 and F7 are shared with them at the same time, since each one is a small fix on their side.
 
-`[[NEEDS INPUT: permission status from the HelaAI authors]]`
+Permission to redistribute the converted weights has been given by the HelaAI authors.
 
 #### 5.2 Phase 1: Reference outputs
 
@@ -344,7 +344,7 @@ We load both checkpoints with the instruct repository's classes (F2) and store g
 
 - logits for a fixed set of prompts, including the instruct template;
 - 40-token greedy generations for the same prompts;
-- perplexity on a held-out Sinhala set. We propose the FLORES+ `sin_Sinh` devtest split (1,012 sentences) for this purpose.
+- perplexity on a held-out Sinhala set. We propose the FLORES+ `sin_Sinh` devtest split (1,012 sentences) for this purpose. Since FLORES+ is gated on Hugging Face, this reference perplexity is computed together with the quality evaluation in Section 5.6.
 
 #### 5.3 Phase 2: Llama conversion (parity gate 1)
 
@@ -363,7 +363,7 @@ cfg = LlamaConfig(
 
 Two details are easy to get wrong. First, the original model uses `nn.RMSNorm` without an explicit epsilon, which defaults to the machine epsilon of the data type (about 1.19e-7 for float32), while Llama configurations usually use 1e-5. Second, `intermediate_size` is 1365, which comes from `int(512 * 8 / 3)`.
 
-The full conversion and gate are implemented in `tools/parity_check.py`. The gate passes when the maximum absolute logit difference is below 1e-4 and all greedy generations are identical. Both checkpoints currently pass with a difference of 0.00. The script also writes a `generation_config.json` alongside the model through `save_pretrained`, which we update with `eos_token_id = 3` and default sampling settings.
+The full conversion and gate are implemented in `convert/parity_check.py`. The gate passes when the maximum absolute logit difference is below 1e-4 and all greedy generations are identical. Both checkpoints currently pass with a difference of 0.00. The script also writes a `generation_config.json` alongside the model through `save_pretrained`, which we update with `eos_token_id = 3` and default sampling settings.
 
 #### 5.4 Phase 3: Tokenizer port (parity gate 3)
 
@@ -439,7 +439,7 @@ The converted model is exported with key-value caching, using the Optimum ONNX e
 optimum-cli export onnx --model ./sinhalalm-it-llama --task text-generation-with-past ./export/sinhalalm-it
 ```
 
-The exported model is then quantized into fp16, q8 and q4 (4-bit, MatMulNBits) variants, using the quantization script in the transformers.js repository, so that the files follow the `onnx/` folder layout and naming that transformers.js expects. Parity gate 2 compares the fp32 ONNX model with the PyTorch reference, using the same tolerance as gate 1.
+The exported model is then quantized into fp16, q8 and q4 (4-bit, MatMulNBits) variants, using ONNX Runtime's quantization tools (the quantization script that the transformers.js repository shipped until version 3.8.1 was removed in version 4), so that the files follow the `onnx/` folder layout and naming that transformers.js expects. Parity gate 2 compares the fp32 ONNX model with the PyTorch reference, using the same tolerance as gate 1.
 
 The expected download sizes are derived from the 32.85M unique parameters:
 
@@ -504,7 +504,8 @@ The offline layer is added with `vite-plugin-pwa` (Workbox), which caches the ap
 ```
 sinhalalm-web/
 ├── convert/                  # Python, build time
-│   ├── parity_check.py       # gate 1 (provided as tools/parity_check.py)
+│   ├── helaai.py             # pinned HelaAI sources and reference loader
+│   ├── parity_check.py       # gate 1
 │   ├── export_onnx.sh        # Optimum export
 │   ├── quantize.sh           # fp16 / q8 / q4
 │   ├── eval_quality.py       # gate 2 + RQ1 perplexity
@@ -517,7 +518,7 @@ sinhalalm-web/
 │   ├── src/ui/
 │   ├── public/models/<model>/<version>/
 │   └── tests/                # Vitest unit tests, Playwright E2E
-└── .github/workflows/
+└── Makefile                  # local CI pipeline
 ```
 
 ---
@@ -558,7 +559,7 @@ Gate 4 runs the golden prompts in a headless browser and compares the output tok
   - කුමක්ද? → one token, and කුමක්ද ? → four tokens (punctuation stays attached);
   - ඔබ → one token, `ඔබ</w>` (the case that breaks the Hugging Face convention);
   - ශ්‍රී → four tokens including `<UNK>`, and ශ්රී → three tokens with no `<UNK>`;
-  - the instruct template → 37 tokens, with `<UNK>` at exactly three positions;
+  - the instruct template alone → 24 tokens, with `<UNK>` at exactly two positions, and the template with the model card question → 37 tokens, with `<UNK>` at three positions;
   - text starting with a byte order mark → the same IDs as Python.
 - **ZWJ module**: `stripZwj` on mixed input, `restoreConjuncts` on a curated list of rakaransaya and yansaya words (for example, ප්රධාන → ප්‍රධාන and සත්ය → සත්‍ය), and the token-boundary buffer. `decodeToken` is tested on both sides of the rule: `<UNK>` after සත් must become ZWJ, while `<UNK>` after L must be dropped.
 - **Prompt builder**: byte-for-byte equality with the Python `build_prompt` output.
@@ -580,19 +581,27 @@ WebGPU behavior varies by device and driver, so benchmarks run on physical devic
 
 The protocol uses a fixed prompt, greedy decoding, 128 new tokens and the median of five runs. The application includes a benchmark page that runs this protocol and shows the results with a "copy results" button, so that community members can voluntarily contribute measurements from their own devices.
 
-`[[NEEDS INPUT: devices available for benchmarking]]`
+Since the target devices are desktop and laptop computers, the benchmark matrix runs on a laptop with an Intel Core i7-11375H (8 threads), an NVIDIA GeForce RTX 3060 Laptop GPU, Intel Iris Xe graphics and 23 GB of memory: Chrome with WebGPU on the discrete GPU, Chrome with WebGPU on the integrated GPU, Chrome with multi-threaded WASM (8 threads), Chrome with single-threaded WASM, Firefox with WASM, and a low-end stand-in with 2 WASM threads and 4× CPU throttling. Community measurements from the benchmark page extend this matrix to other computers.
 
 #### 6.5 Human evaluation (RQ3)
 
 ZWJ restoration and answer quality are judged by native Sinhala speakers. For RQ3, raters see the same output with and without restoration and mark which rendering is correct. A larger generation sample is also used to confirm or reject the `<UNK>`-after-virama pattern observed in F6.
 
-`[[NEEDS INPUT: number of raters and sample size]]`
+The number of raters and the sample size are decided after a sample of 500 instruct generations confirms or rejects the pattern in F6. The starting point is three native-speaker raters and about 150 items, with Fleiss' kappa for inter-rater agreement.
 
 #### 6.6 Acceptance criteria
 
 The application is ready for release when all parity gates pass, the selected variant passes the quality gate, the offline end-to-end test passes, and the benchmark results meet the targets for the chosen devices.
 
-`[[NEEDS INPUT: performance targets, for example time to first token and tokens per second on a mid-range phone]]`
+The performance targets for desktop and laptop computers are provisional and are revisited after the first benchmark run:
+
+| Metric | Target |
+|---|---|
+| Download size | at most 70 MB per model for the default variant |
+| Warm load time | at most 3 s on WASM and 5 s on WebGPU |
+| Time to first token (about 60 prompt tokens) | at most 300 ms on WebGPU (discrete GPU) and 500 ms on multi-threaded WASM |
+| Generation speed | at least 50 tokens/s on WebGPU, 25 tokens/s on multi-threaded WASM and 10 tokens/s on the low-end stand-in |
+| Peak tab memory | at most 500 MB |
 
 ---
 
@@ -610,20 +619,20 @@ Multi-threaded WASM requires `SharedArrayBuffer`, which browsers only enable on 
 
 We propose a Hugging Face static Space as the primary host, since it supports the required headers and large files without workarounds. The header configuration should be confirmed against the current Spaces documentation.
 
-`[[NEEDS INPUT: final hosting choice]]`
+The project is hosted on a Hugging Face static Space.
 
 #### 7.2 CI/CD pipeline
 
-The pipeline runs on GitHub Actions in four jobs:
+The pipeline runs locally through a Makefile (`make ci`) rather than on a hosted CI service, in four stages:
 
-1. **Convert**: runs the conversion, parity gates 1 and 2, quantization and the quality gate on a CPU runner, and uploads the model artifacts.
+1. **Convert**: runs the conversion, parity gates 1 and 2, quantization and the quality gate on the CPU, and writes the model artifacts to the build folder.
 2. **Tokenizer**: generates golden cases in Python and runs the JavaScript parity test in Node.js.
 3. **Build and test**: builds the web application and runs unit and Playwright tests, including gate 4 and the offline test.
-4. **Deploy**: on a version tag, publishes the application and the model files under a new versioned path.
+4. **Deploy**: on a version tag, `make deploy` publishes the application and the model files under a new versioned path.
 
 ```mermaid
 flowchart LR
-  P["Push or pull request"] --> J1["Convert<br/>gates 1-2, quantize, quality gate"]
+  P["make ci"] --> J1["Convert<br/>gates 1-2, quantize, quality gate"]
   P --> J2["Tokenizer<br/>gate 3"]
   J1 --> J3["Build and test<br/>unit, Playwright, gate 4, offline test"]
   J2 --> J3
@@ -654,7 +663,7 @@ All inference happens on the device, and the application sends no analytics. The
 | Quantized variants degrade quality | Poor answers | Quality gate before the UI; ship fp16 if q8 and q4 fail. |
 | Embedding left in fp32 increases size | Larger download than estimated | Measure real sizes; evaluate quantizing the embedding as a separate experiment. |
 | WebGPU unavailable or unstable | Slower generation | Automatic WASM fallback with cross-origin isolation for multi-threading. |
-| Storage eviction on mobile | Offline mode fails | `navigator.storage.persist()`, hash checks and a clear re-download prompt. |
+| Storage eviction | Offline mode fails | `navigator.storage.persist()`, hash checks and a clear re-download prompt. |
 | Low-quality or repetitive outputs (F8) | User trust | Repetition penalty, limitations notice and correct framing of the model as a research prototype. |
 | ZWJ restoration rules are wrong for some words | Incorrect rendering | Native-speaker evaluation (RQ3) and a setting to disable restoration. |
 
