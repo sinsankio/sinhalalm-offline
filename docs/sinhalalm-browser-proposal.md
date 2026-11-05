@@ -287,13 +287,9 @@ Alongside the sentences, the test deliberately includes named cases: text with a
 
 #### 5.5 Phase 4: ONNX export and quantization (parity gate 2)
 
-The translated model is exported with key-value caching, using the Optimum ONNX exporter:
+The translated model is exported with key-value caching, using the Optimum ONNX exporter on the model already loaded with the translated configuration (`text-generation-with-past`, opset 18). Since the export of a 1.74B model does not fit into the available memory as a single process, it runs in two steps: a capped child process traces the model and writes one file per tensor, and the parent process verifies that every tensor file is complete, ties the duplicated output head back to the embedding and writes a single `model.onnx_data` file ([onnx-export.md](findings/onnx-export.md)).
 
-```bash
-optimum-cli export onnx --model ./sinhalallm-1.7b --task text-generation-with-past ./export/sinhalallm-1.7b
-```
-
-The exported model is then quantized into fp16, q8 and q4 (4-bit, MatMulNBits) variants with ONNX Runtime's quantization tools, so that the files follow the `onnx/` folder layout and naming that transformers.js expects. Parity gate 2 compares the fp32 ONNX model with the PyTorch model in the export environment, using the same tolerance as gate 1.
+The exported model is then quantized into fp16, q8 and q4 (4-bit, MatMulNBits) variants with ONNX Runtime's quantization tools, so that the files follow the `onnx/` folder layout and naming that transformers.js expects. Parity gate 2 compares the fp32 ONNX model with the golden logits, which gate 1 proved identical to the PyTorch model in the export environment. Since ONNX Runtime and PyTorch use different fp32 matrix-multiplication kernels, the gate uses a relative tolerance together with top-1 and greedy agreement rather than the absolute tolerance of gate 1.
 
 The expected download sizes are derived from the 1.74B parameters:
 
@@ -306,7 +302,7 @@ The expected download sizes are derived from the 1.74B parameters:
 
 The right-hand column reflects a practical consideration. The toolchain check showed that the 4-bit quantizer leaves a tied embedding and output head in full precision. For SinhalaLLM-1.7B, the embedding is 7.5% of all parameters, so this would raise the q4 file above the 1.2 GB target. Quantizing the embedding and the output head is therefore part of RQ1, and the real sizes are recorded there.
 
-The fp32 export of a 1.74B model needs about 7 GB of disk for the weights and about 7 GB for the ONNX file, together with a comparable amount of memory during export. Large artifacts are kept in a model store on an external drive.
+The fp32 export of a 1.74B model needs about 7 GB of disk for the raw export and another 7 GB for the final ONNX file, and the tracing step peaked above 11 GB of memory. Large artifacts are kept in a model store on an external drive.
 
 #### 5.6 Phase 5: Quality evaluation before the UI (RQ1)
 
@@ -360,7 +356,7 @@ sinhalalm-web/
 ├── convert/                  # Python, build time
 │   ├── sinhalallm.py         # pinned source, config translation, loaders
 │   ├── parity_check.py       # gate 1
-│   ├── export_onnx.sh        # Optimum export
+│   ├── export_onnx.py        # Optimum export, verified and finalized
 │   ├── quantize.sh           # fp16 / q8 / q4
 │   ├── eval_quality.py       # gate 2 + RQ1 perplexity
 │   └── make_golden.py        # golden logits + tokenizer cases
@@ -398,7 +394,7 @@ flowchart LR
 | Gate | Compares | Pass criterion |
 |---|---|---|
 | 1 | Reference (`transformers` 5.19.0) vs export load (`transformers` 4.57.6, translated config) | max \|logit diff\| < 1e-4 and identical greedy output; the untranslated config must fail |
-| 2 | Export load (PyTorch) vs ONNX fp32 | max \|logit diff\| < 1e-4 and identical greedy output |
+| 2 | Export load (PyTorch, through the golden logits) vs ONNX fp32 | max \|logit diff\| below 1e-4 of each position's largest absolute logit, identical top-1 token at every position and identical greedy output |
 | 3 | Python `tokenizers` vs transformers.js tokenizer | identical IDs on 10,000 sentences and identical chat-template strings |
 | 4 | Default quantized variant in Python ONNX Runtime vs the same file in the browser (WASM) | identical greedy output on golden questions |
 | Quality | Quantized vs fp32 | perplexity within 2% of fp32 |
@@ -497,7 +493,7 @@ All inference happens on the device, and the application sends no analytics. The
 | Configuration read differently by two `transformers` versions (S1) | Silently wrong model | Configuration translation, gate 1 with a negative control, pinned versions. |
 | Tokenizer drift between Python and JS | Silent quality loss | Parity gate 3 on 10,000 sentences, run on every `make ci`. |
 | ZWJ normalization wrong for some words (S3) | Incorrect input | Rules limited to the clusters in the vocabulary, native-speaker evaluation (RQ3) and a setting to disable the normalization. |
-| Export needs more memory or disk than available (S7) | Export fails | Model store on an external drive; export in a single process with other applications closed; fp16 export as a fallback. |
+| Export needs more memory or disk than available (S7) | Export fails | Model store on an external drive; tracing in a memory-capped child process, byte-level validation of its output and finalization in a separate process. |
 | q4 leaves the tied embedding in fp32 | Download above 1.2 GB | Quantize the embedding and head as part of RQ1; ship q8 or a larger budget if quality requires it. |
 | WASM cannot hold large variants | Gate 4 or the WASM fallback fails | Gate 4 on the quantized default; WASM support verified at the start of the browser work. |
 | WebGPU unavailable or unstable | Slower generation | Automatic WASM fallback with cross-origin isolation for multi-threading. |
