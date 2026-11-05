@@ -55,6 +55,7 @@ The project requires `uv`, Python 3.12, Node.js 22 or later and `make`. npm 11 i
 ```bash
 make setup   # install Python and Node dependencies
 make golden  # regenerate golden reference outputs from the HelaAI checkpoints
+make convert # gate 1: convert both checkpoints to Llama and verify parity
 make ci      # run the local CI pipeline
 make help    # list all targets
 ```
