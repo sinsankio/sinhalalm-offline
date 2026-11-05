@@ -8,6 +8,7 @@ This document summarizes the research and development findings of the project in
 |---|---|---|
 | [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
 | [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
+| [rq1-quantization.md](docs/findings/rq1-quantization.md) | RQ1: quantization quality | fp16 and q8 stay within 2% of fp32, while every 4-bit variant fails; keeping the value projection of layer 0 in fp32 reduces the 4-bit loss from +164% to +33%, better than the author's own 4-bit release. |
 | [quantization.md](docs/findings/quantization.md) | fp16, q8 and q4 variants | Only q4 with an untied, quantized head and a quantized embedding fits the 1.2 GB target (1.17 GB), but a first check suggests it costs quality, while q8 is accurate but very slow on the CPU. |
 | [onnx-export.md](docs/findings/onnx-export.md) | ONNX export and parity gate 2 | The export fits the machine only as a capped trace plus a separate verify-and-finalize step, and the fp32 ONNX model reproduces every greedy answer with a relative logit difference of at most 3.46e-5. |
 | [zwj-normalization.md](docs/findings/zwj-normalization.md) | Input normalization of the ZWJ | The model learned exactly 15 clusters with the ZWJ and all others without it, so normalizing the input to that split reduces tokens by 1.6% on the corpus and by 10.4% on text typed without the ZWJ, while a blanket rule increases them. |
@@ -30,6 +31,13 @@ This document summarizes the research and development findings of the project in
 - **S2 and S3: the ZWJ must be added to the input.** The tokenizer has no normalizer, ශ්රී ලංකාව ප්රධාන without the ZWJ becomes 6 fragments instead of 3 tokens, and the vocabulary contains the ZWJ only in `්‍ර` (611 tokens) and `්‍ය` (150 tokens).
 - **S4: the browser tokenizer matches the Python one.** transformers.js 4.3.2 produced identical token IDs on 210 Sinhala texts and edge cases, so no custom tokenizer port is needed.
 - **S5–S8: context, stop tokens, size and accuracy.** The application caps the context at 1,024 tokens, stops at both `<|im_end|>` and `<|endoftext|>`, ships only quantized variants of the 6.96 GB fp32 model, and labels answers as unverified.
+
+### RQ1: quantization quality
+
+- **fp16 and q8 pass the 2% gate.** On identical FLORES+ sentences, fp16 matches fp32 (+0.0%) and q8 loses 1.2% in perplexity, at 3.68 GB and 2.48 GB.
+- **Every plain 4-bit variant fails by far.** Perplexity rises by +164% to +248% across head and embedding precision, asymmetric quantization, block size 16 and HQQ.
+- **The cause is not the pipeline.** The 4-bit kernel's compute precision and the dequantized weight error both behave as expected, and the author's own mixed 4/6-bit GGUF release loses +51.5% on the same sentences.
+- **One matrix causes most of the loss.** Keeping the 16 MB value projection of layer 0 in fp32 reduces the loss to +33% (q4-v0, 1.54 GB), or +40% with a 4-bit head and embedding (q4-v0-small, 1.18 GB, within the 1.2 GB target).
 
 ### Quantization
 
