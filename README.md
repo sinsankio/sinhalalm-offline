@@ -22,7 +22,7 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Project bootstrap and toolchain checks | Done |
-| 1 | Reference outputs and Llama conversion (gate 1) | Next |
+| 1 | Reference outputs and Llama conversion (gate 1) | In progress |
 | 2 | Tokenizer port (gate 3) and ZWJ handling | Planned |
 | 3 | ONNX export (gate 2), quantization and RQ1 | Planned |
 | 4 | Browser application, offline mode and gate 4 | Planned |
@@ -54,9 +54,12 @@ The project requires `uv`, Python 3.12, Node.js 22 or later and `make`. npm 11 i
 
 ```bash
 make setup   # install Python and Node dependencies
+make golden  # regenerate golden reference outputs from the HelaAI checkpoints
 make ci      # run the local CI pipeline
 make help    # list all targets
 ```
+
+The first `make golden` or `make ci` downloads both HelaAI checkpoints (about 360 MB) into `build/hf/`, at pinned revisions with verified SHA-256 hashes.
 
 ### Development workflow
 
