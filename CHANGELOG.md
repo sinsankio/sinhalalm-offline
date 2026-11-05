@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/model-comparison — Alternative model comparison
+
+#### Added
+
+- `docs/model-comparison.md`, which compares the current HelaAI instruct model with SinhalaLLM-1.7B, Qwen3.5-2B and Qwen3.5-0.8B on ten Sinhala questions, together with Sinhala tokenizer efficiency, ZWJ handling, license, browser download size and the changes each candidate would bring to the project plan.
+
+#### Context
+
+- The question-answering quality of both HelaAI SinhalaLM models was judged unsatisfactory after reviewing `docs/model-outputs.md`, so the project is evaluating alternative models before the Phase 2 work starts. The HelaAI pipeline and findings stay in place until a model is chosen.
+
+#### Attempts
+
+- The machine had about 5 GB of free disk space, so the candidates were screened one at a time from their 4-bit files (a 1.08 GB GGUF file for SinhalaLLM-1.7B and the `onnx-community` q4 builds for Qwen3.5), and each was deleted after its run. Gemma 4 E2B and SinLlama did not fit and were not screened.
+
 ### feat/golden-outputs-doc — Model outputs document
 
 #### Added
