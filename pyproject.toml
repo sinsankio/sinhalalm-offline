@@ -10,7 +10,14 @@ dependencies = [
 [dependency-groups]
 dev = ["ruff==0.17.1"]
 export = [
+    "accelerate==1.15.0",
     "huggingface-hub==0.36.2",
+    "onnx==1.23.2",
+    "onnx-ir==1.1.0",
+    "onnxruntime==1.31.0",
+    "onnxslim==0.1.98",
+    "optimum==2.1.0",
+    "optimum-onnx==0.1.0",
     "safetensors==0.8.0",
     "transformers==4.57.6",
 ]
