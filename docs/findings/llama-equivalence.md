@@ -28,8 +28,8 @@ The gate passes for a checkpoint when all of the following hold:
 
 | Checkpoint | Max \|logit diff\| | Greedy mismatches | Parameters | Saved model diff | Result |
 |---|---|---|---|---|---|
-| Base | 0.0 | 0 of 4 | 32,850,432 | 0.0 | Pass |
-| Instruct | 0.0 | 0 of 4 | 32,850,432 | 0.0 | Pass |
+| Base | 0.0 | 0 of 8 | 32,850,432 | 0.0 | Pass |
+| Instruct | 0.0 | 0 of 8 | 32,850,432 | 0.0 | Pass |
 
 The logit difference is exactly zero on every case, including the random 512-token input, which covers the full context length. This is most likely because, once the tensors are mapped, both implementations perform the same floating-point operations in the same order on CPU. Each converted fp32 `model.safetensors` is 131,409,848 bytes, which matches the 131.4 MB estimate in Section 5.5 of the proposal.
 

@@ -29,7 +29,7 @@ The nine audit findings of the proposal (F1–F9) were reproduced against the He
 
 - **All nine findings hold.** This includes the 32,850,432 unique parameters (F1), the unloadable `tokenizer.json` with 5,814 of 14,811 broken merges (F3) and the 512-token context length (F7).
 - **F4 is corrected.** The instruct template alone encodes as 24 tokens with two `<UNK>`. The proposal's 37 tokens with three `<UNK>` include the model card's example question, whose ZWJ adds the third `<UNK>`.
-- **F6 holds on new prompts.** All 4 `<UNK>` tokens in the golden instruct generations follow a token ending in the virama.
+- **F6 holds on new prompts.** All 8 `<UNK>` tokens in the eight golden instruct generations follow a token ending in the virama, while the base model generates none.
 - **F10: the instruct `modeling_sinhalalm.py` cannot be imported.** It loads a local checkpoint with `torch.load` at import time, so the pipeline executes only the required definitions from the hash-verified file.
 - **F11: two fine-tuning datasets are named.** The instruct config names the ELI5 dataset, while the training code names the question-answer pairs dataset.
 - **F12: ELI5 HTML entities appear in outputs.** `&quot;` is common in the ELI5 answers, absent in the question-answer pairs, and reproduced literally by the instruct model. The application therefore decodes HTML entities in model outputs.

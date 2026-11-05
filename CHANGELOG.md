@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/golden-outputs-doc — Model outputs document
+
+#### Added
+
+- `docs/model-outputs.md`, which lists every golden prompt with the greedy output of both models, the stopping reason, the `<UNK>` count and, where `<UNK>` occurs, the same output with each `<UNK>` marked, so that the outputs can be validated by a native Sinhala speaker.
+- `make_golden.py` generates the document from the same run as `golden/reference.json`, and `make check-golden` now fails if either file drifts.
+
+#### Changed
+
+- `golden/prompts.json` is now a single list of eight prompts, and every prompt runs through both models, instead of four prompts per model. The case keys changed from `base_0` and `it_0` to `p0_base` and `p0_it`.
+- Gate 1 now runs on eight golden prompts per checkpoint and still passes with a logit difference of 0.0 and no greedy mismatches.
+- The F6 and F8 evidence in `docs/findings/repository-audit.md` and the gate 1 table in `docs/findings/llama-equivalence.md` now refer to the eight-prompt set. With it, all 8 `<UNK>` tokens in the instruct generations follow a token ending in the virama.
+
 ### docs/html-entity-decision — HTML entity decoding
 
 #### Decisions

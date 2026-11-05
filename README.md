@@ -29,7 +29,7 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
 | 6 | Benchmarks (RQ2) and ZWJ recovery evaluation (RQ3) | Planned |
 
-Research results are summarized in [FINDINGS.md](FINDINGS.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
+Research results are summarized in [FINDINGS.md](FINDINGS.md), the outputs of both models on the golden prompts are listed in [docs/model-outputs.md](docs/model-outputs.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ### Project structure
 
