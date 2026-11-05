@@ -17,16 +17,34 @@ REFERENCE_ENV := .venv-reference
 PY := env -u VIRTUAL_ENV $(UV) run python
 REF_PY := env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT=$(REFERENCE_ENV) $(UV) run --no-default-groups --group reference python
 
+STAMPS := build/stamps
 GOLDEN_LOGITS := $(SINHALALM_STORE)/golden/reference_logits.npz
-GATE1_REPORT := $(SINHALALM_STORE)/gate1/parity.json
-GOLDEN_INPUTS := convert/sinhalallm.py convert/make_golden.py golden/prompts.json uv.lock
-GATE1_INPUTS := convert/sinhalallm.py convert/parity_check.py golden/reference.json uv.lock
 TOKENIZER_CORPUS := golden/generated/tokenizer_corpus.json
-TOKENIZER_INPUTS := convert/sinhalallm.py convert/make_golden.py uv.lock
+GATE1_REPORT := $(SINHALALM_STORE)/gate1/parity.json
 ONNX_FP32 := $(SINHALALM_STORE)/onnx/fp32/export.json
 GATE2_REPORT := $(SINHALALM_STORE)/onnx/fp32/gate2.json
 
-.PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx verify test-web ci
+COMMON_INPUTS := convert/sinhalallm.py uv.lock
+GOLDEN_INPUTS := $(COMMON_INPUTS) convert/make_golden.py golden/prompts.json
+TOKENIZER_INPUTS := $(COMMON_INPUTS) convert/make_golden.py
+GATE1_INPUTS := $(COMMON_INPUTS) convert/parity_check.py golden/reference.json
+EXPORT_INPUTS := $(COMMON_INPUTS) convert/parity_check.py convert/export_onnx.py
+GATE2_INPUTS := $(COMMON_INPUTS) convert/eval_quality.py golden/reference.json
+
+define content_stamp
+$(STAMPS)/$(1).sha256: FORCE
+	@mkdir -p $(STAMPS)
+	@sha256sum $(2) > $$@.new
+	@if cmp -s $$@.new $$@; then rm $$@.new; else mv $$@.new $$@; fi
+endef
+
+$(eval $(call content_stamp,golden,$(GOLDEN_INPUTS)))
+$(eval $(call content_stamp,tokenizer,$(TOKENIZER_INPUTS)))
+$(eval $(call content_stamp,gate1,$(GATE1_INPUTS)))
+$(eval $(call content_stamp,export,$(EXPORT_INPUTS)))
+$(eval $(call content_stamp,gate2,$(GATE2_INPUTS)))
+
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx verify test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -54,19 +72,19 @@ format: ## Apply formatters to Python and web sources
 	$(UV) run ruff check --fix convert
 	cd $(WEB) && $(NPM) run format
 
-$(GOLDEN_LOGITS): $(GOLDEN_INPUTS)
+$(GOLDEN_LOGITS): $(STAMPS)/golden.sha256
 	$(REF_PY) convert/make_golden.py reference
 
-$(TOKENIZER_CORPUS): $(TOKENIZER_INPUTS)
+$(TOKENIZER_CORPUS): $(STAMPS)/tokenizer.sha256
 	$(REF_PY) convert/make_golden.py tokenizer
 
-$(GATE1_REPORT): $(GATE1_INPUTS) $(GOLDEN_LOGITS)
+$(GATE1_REPORT): $(GOLDEN_LOGITS) $(STAMPS)/gate1.sha256
 	$(PY) convert/parity_check.py
 
-$(ONNX_FP32): convert/export_onnx.py $(GATE1_REPORT)
+$(ONNX_FP32): $(STAMPS)/export.sha256 | $(GATE1_REPORT)
 	$(PY) convert/export_onnx.py
 
-$(GATE2_REPORT): convert/eval_quality.py $(ONNX_FP32) $(GOLDEN_LOGITS)
+$(GATE2_REPORT): $(ONNX_FP32) $(GOLDEN_LOGITS) $(STAMPS)/gate2.sha256
 	$(PY) convert/eval_quality.py gate2
 
 golden: ## Regenerate golden outputs and tokenizer cases with the reference toolchain

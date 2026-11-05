@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### build/content-hash-stamps — Content-based pipeline rebuilds
+
+#### Changed
+
+- The pipeline targets in the Makefile now depend on SHA-256 stamps of their input files in `build/stamps/` instead of the files' modification times. A stamp is rewritten only when the content of its inputs changes, so `make ci` on an unchanged tree takes about 4 seconds instead of rerunning golden generation, gate 1, the export and gate 2 for about 10 minutes after every merge.
+- The ONNX export now depends on gate 1 as an order-only prerequisite: gate 1 must pass first, but a rerun of gate 1 alone no longer triggers a new export.
+
 ### feat/onnx-export — ONNX export and parity gate 2
 
 #### Added
