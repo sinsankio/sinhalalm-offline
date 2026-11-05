@@ -32,8 +32,8 @@ def translated_config() -> LlamaConfig:
     return config
 
 
-def load_export_model(config: LlamaConfig) -> LlamaForCausalLM:
-    return LlamaForCausalLM.from_pretrained(model_dir(), config=config, dtype=torch.float32).eval()
+def load_export_model(config: LlamaConfig, dtype: torch.dtype = torch.float32) -> LlamaForCausalLM:
+    return LlamaForCausalLM.from_pretrained(model_dir(), config=config, dtype=dtype).eval()
 
 
 @torch.no_grad()

@@ -90,3 +90,10 @@ def random_ids(spec: dict) -> list[int]:
     generator = torch.Generator().manual_seed(spec["seed"])
     shape = (spec["length"],)
     return torch.randint(spec["low"], spec["high"], shape, generator=generator).tolist()
+
+
+def write_model_folder(directory: Path) -> None:
+    fp32 = store_path("onnx", "fp32")
+    for name in ("config.json", "generation_config.json"):
+        (directory / name).write_bytes((fp32 / name).read_bytes())
+    write_browser_tokenizer(directory)

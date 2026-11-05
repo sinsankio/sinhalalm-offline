@@ -59,6 +59,7 @@ make golden  # regenerate golden outputs and tokenizer cases with the reference 
 make convert # gate 1: verify the export toolchain (transformers 4.57.6) against the reference
 make test-web # web unit tests, including gate 3 (tokenizer parity on 10,000 sentences)
 make onnx    # export fp32 ONNX and run gate 2 (needs about 11.5 GB of free memory)
+make quantize # build the fp16, q8, q4 and q4-tied variants (needs about 13 GB of free memory)
 make verify  # rerun golden generation and gate 1 from scratch
 make ci      # run the local CI pipeline
 make help    # list all targets

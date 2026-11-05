@@ -289,18 +289,18 @@ Alongside the sentences, the test deliberately includes named cases: text with a
 
 The translated model is exported with key-value caching, using the Optimum ONNX exporter on the model already loaded with the translated configuration (`text-generation-with-past`, opset 18). Since the export of a 1.74B model does not fit into the available memory as a single process, it runs in two steps: a capped child process traces the model and writes one file per tensor, and the parent process verifies that every tensor file is complete, ties the duplicated output head back to the embedding and writes a single `model.onnx_data` file ([onnx-export.md](findings/onnx-export.md)).
 
-The exported model is then quantized into fp16, q8 and q4 (4-bit, MatMulNBits) variants with ONNX Runtime's quantization tools, so that the files follow the `onnx/` folder layout and naming that transformers.js expects. Parity gate 2 compares the fp32 ONNX model with the golden logits, which gate 1 proved identical to the PyTorch model in the export environment. Since ONNX Runtime and PyTorch use different fp32 matrix-multiplication kernels, the gate uses a relative tolerance together with top-1 and greedy agreement rather than the absolute tolerance of gate 1.
+The fp16 variant is exported directly from the model loaded in fp16, since ONNX Runtime's fp16 converter holds both copies in memory. The q8 and q4 variants are produced from the fp32 ONNX model with ONNX Runtime's block quantizer (MatMulNBits, block size 32, symmetric), with the output head untied into its own weight so that it can be quantized as well. All variants follow the `onnx/` folder layout and file naming that transformers.js expects. Parity gate 2 compares the fp32 ONNX model with the golden logits, which gate 1 proved identical to the PyTorch model in the export environment. Since ONNX Runtime and PyTorch use different fp32 matrix-multiplication kernels, the gate uses a relative tolerance together with top-1 and greedy agreement rather than the absolute tolerance of gate 1.
 
 The expected download sizes are derived from the 1.74B parameters:
 
-| Variant | Lower bound | If the embedding table stays fp32 |
-|---|---|---|
-| fp32 | 6.96 GB | 6.96 GB |
-| fp16 | 3.48 GB | 3.48 GB |
-| q8 | 1.74 GB | about 2.13 GB |
-| q4 | 0.87 GB | about 1.32 GB |
+| Variant | Lower bound | If the embedding table stays fp32 | Measured ([quantization.md](findings/quantization.md)) |
+|---|---|---|---|
+| fp32 | 6.96 GB | 6.96 GB | 6.96 GB |
+| fp16 | 3.48 GB | 3.48 GB | 3.68 GB |
+| q8 | 1.74 GB | about 2.13 GB | 2.48 GB (embedding fp32) |
+| q4 | 0.87 GB | about 1.32 GB | 1.17 GB (embedding and head 4-bit), 1.53 GB (default quantizer) |
 
-The right-hand column reflects a practical consideration. The toolchain check showed that the 4-bit quantizer leaves a tied embedding and output head in full precision. For SinhalaLLM-1.7B, the embedding is 7.5% of all parameters, so this would raise the q4 file above the 1.2 GB target. Quantizing the embedding and the output head is therefore part of RQ1, and the real sizes are recorded there.
+The third column reflects a practical consideration. The toolchain check showed that the 4-bit quantizer leaves a tied embedding and output head in full precision, and the measured q4 file with the default quantizer (1.53 GB) confirms it. Untying the head and quantizing the embedding brings q4 to 1.17 GB, under the 1.2 GB target, but an early check suggests that it costs quality, so the quantization choices are part of RQ1. The measured sizes are larger than the lower bounds since block quantization stores one scale per 32 weights.
 
 The fp32 export of a 1.74B model needs about 7 GB of disk for the raw export and another 7 GB for the final ONNX file, and the tracing step peaked above 11 GB of memory. Large artifacts are kept in a model store on an external drive.
 
@@ -357,7 +357,7 @@ sinhalalm-web/
 │   ├── sinhalallm.py         # pinned source, config translation, loaders
 │   ├── parity_check.py       # gate 1
 │   ├── export_onnx.py        # Optimum export, verified and finalized
-│   ├── quantize.sh           # fp16 / q8 / q4
+│   ├── quantize.py           # q8 / q4 variants
 │   ├── eval_quality.py       # gate 2 + RQ1 perplexity
 │   └── make_golden.py        # golden logits + tokenizer cases
 ├── golden/                   # fixtures shared by Python and JS tests
@@ -494,7 +494,7 @@ All inference happens on the device, and the application sends no analytics. The
 | Tokenizer drift between Python and JS | Silent quality loss | Parity gate 3 on 10,000 sentences, run on every `make ci`. |
 | ZWJ normalization wrong for some words (S3) | Incorrect input | Rules limited to the clusters in the vocabulary, native-speaker evaluation (RQ3) and a setting to disable the normalization. |
 | Export needs more memory or disk than available (S7) | Export fails | Model store on an external drive; tracing in a memory-capped child process, byte-level validation of its output and finalization in a separate process. |
-| q4 leaves the tied embedding in fp32 | Download above 1.2 GB | Quantize the embedding and head as part of RQ1; ship q8 or a larger budget if quality requires it. |
+| q4 leaves the tied embedding in fp32, or loses quality once it is quantized | Download above 1.2 GB, or poor answers | Untie and quantize the head and embedding; compare quantization choices in RQ1; raise the size budget if quality requires it. |
 | WASM cannot hold large variants | Gate 4 or the WASM fallback fails | Gate 4 on the quantized default; WASM support verified at the start of the browser work. |
 | WebGPU unavailable or unstable | Slower generation | Automatic WASM fallback with cross-origin isolation for multi-threading. |
 | Storage eviction | Offline mode fails | `navigator.storage.persist()`, hash checks and a clear re-download prompt. |
