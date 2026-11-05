@@ -1,14 +1,40 @@
 import argparse
+import hashlib
 import json
+import math
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
 import onnxruntime as ort
+from huggingface_hub import hf_hub_download
+from tokenizers import Tokenizer
 
-from sinhalallm import STOP_IDS, load_golden, random_ids, store_path
+from sinhalallm import STOP_IDS, load_golden, model_dir, random_ids, store_path
 
 RELATIVE_TOLERANCE = 1e-4
+FLORES = {
+    "repo": "openlanguagedata/flores_plus",
+    "revision": "1147e2dc59f37fbb5c22fd8478770de02cd399f9",
+    "file": "devtest/sin_Sinh.jsonl",
+    "sha256": "111d661ffe8bb7f3ee3f6a4d8d644a8f28856b476df4ef74890f7bc97b1ab890",
+}
+VARIANTS = {
+    "fp32": "fp32/model.onnx",
+    "fp16": "fp16/onnx/model_fp16.onnx",
+    "q8": "q8/onnx/model_quantized.onnx",
+    "q4": "q4/onnx/model_q4.onnx",
+    "q4-tied": "q4-tied/onnx/model_q4.onnx",
+    "q4-head": "q4-head/onnx/model_q4.onnx",
+    "q4-emb": "q4-emb/onnx/model_q4.onnx",
+    "q4-asym": "q4-asym/onnx/model_q4.onnx",
+    "q4-b16": "q4-b16/onnx/model_q4.onnx",
+    "q4-hqq": "q4-hqq/onnx/model_q4.onnx",
+    "q4-v0": "q4-v0/onnx/model_q4.onnx",
+    "q4-v0-small": "q4-v0-small/onnx/model_q4.onnx",
+}
+TEXT_START_ID = 0
 
 
 class OnnxCausalLM:
@@ -93,10 +119,112 @@ def gate2(model_path: Path) -> dict:
     }
 
 
+def flores_sentences() -> list[str]:
+    path = Path(
+        hf_hub_download(
+            FLORES["repo"],
+            FLORES["file"],
+            repo_type="dataset",
+            revision=FLORES["revision"],
+            local_dir=store_path("hf", "datasets", "flores_plus"),
+        )
+    )
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if digest != FLORES["sha256"]:
+        raise RuntimeError(f"{FLORES['file']}: sha256 {digest} != {FLORES['sha256']}")
+    return [json.loads(line)["text"] for line in path.open(encoding="utf-8")]
+
+
+def perplexity(model: OnnxCausalLM, sentences: list[str]) -> dict:
+    tokenizer = Tokenizer.from_file(str(model_dir() / "tokenizer.json"))
+    nll, tokens, chars, per_sentence = 0.0, 0, 0, []
+    started = time.perf_counter()
+    for sentence in sentences:
+        ids = tokenizer.encode(sentence, add_special_tokens=False).ids
+        logits, _ = model.forward([TEXT_START_ID, *ids[:-1]])
+        shifted = logits - logits.max(axis=1, keepdims=True)
+        log_probs = shifted - np.log(np.exp(shifted).sum(axis=1, keepdims=True))
+        sentence_nll = -float(log_probs[np.arange(len(ids)), ids].sum())
+        per_sentence.append([round(sentence_nll, 5), len(ids), len(sentence)])
+        nll += sentence_nll
+        tokens += len(ids)
+        chars += len(sentence)
+    return {
+        "sentences": len(sentences),
+        "tokens": tokens,
+        "characters": chars,
+        "perplexity": math.exp(nll / tokens),
+        "bits_per_character": nll / math.log(2) / chars,
+        "prefill_tokens_per_second": tokens / (time.perf_counter() - started),
+        "per_sentence_nll_tokens_chars": per_sentence,
+    }
+
+
+def agreement(model: OnnxCausalLM, questions: int) -> dict:
+    golden = load_golden()
+    expected = np.load(store_path("golden", "reference_logits.npz"))
+    cases = golden["cases"][:questions]
+    top1, positions, exact, prefix = 0, 0, 0, []
+    generated = 0
+    started = time.perf_counter()
+    for case in cases:
+        logits, _ = model.forward(case["input_ids"])
+        top1 += int((logits.argmax(axis=1) == expected[case["key"]].argmax(axis=1)).sum())
+        positions += len(case["input_ids"])
+        ids = model.greedy(case["input_ids"], golden["max_new_tokens"])
+        generated += len(ids)
+        exact += ids == case["greedy_ids"]
+        common = next(
+            (i for i, (a, b) in enumerate(zip(ids, case["greedy_ids"], strict=False)) if a != b),
+            min(len(ids), len(case["greedy_ids"])),
+        )
+        prefix.append(common)
+    return {
+        "questions": len(cases),
+        "prompt_top1_agreement": top1 / positions,
+        "greedy_exact_matches": exact,
+        "greedy_common_prefix_tokens": prefix,
+        "generation_tokens_per_second": generated / (time.perf_counter() - started),
+    }
+
+
+def rq1(variant: str, sentences: int | None, questions: int) -> dict:
+    path = store_path("onnx", *VARIANTS[variant].split("/"))
+    data_bytes = sum(item.stat().st_size for item in path.parent.iterdir() if item.is_file())
+    model = OnnxCausalLM(path)
+    texts = flores_sentences()[:sentences]
+    return {
+        "variant": variant,
+        "file_bytes": data_bytes,
+        "flores": {"revision": FLORES["revision"], "file": FLORES["file"]},
+        "perplexity": perplexity(model, texts),
+        "agreement": agreement(model, questions),
+    }
+
+
+def run_rq1(args: argparse.Namespace) -> int:
+    report = rq1(args.variant, args.sentences, args.questions)
+    output = store_path("rq1")
+    output.mkdir(parents=True, exist_ok=True)
+    (output / f"{args.variant}.json").write_text(json.dumps(report, indent=2) + "\n")
+    ppl, agree = report["perplexity"], report["agreement"]
+    print(
+        f"rq1 {args.variant}: ppl={ppl['perplexity']:.3f} bpc={ppl['bits_per_character']:.4f} "
+        f"top1={agree['prompt_top1_agreement']:.3f} "
+        f"greedy={agree['greedy_exact_matches']}/{agree['questions']}"
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gate 2 and RQ1 quality evaluation.")
-    parser.add_argument("target", choices=("gate2",))
-    parser.parse_args()
+    parser.add_argument("target", choices=("gate2", "rq1"))
+    parser.add_argument("--variant", choices=VARIANTS, default="fp32")
+    parser.add_argument("--sentences", type=int, help="limit the FLORES+ sentences")
+    parser.add_argument("--questions", type=int, default=10, help="golden questions to generate")
+    args = parser.parse_args()
+    if args.target == "rq1":
+        return run_rq1(args)
     report = gate2(store_path("onnx", "fp32", "model.onnx"))
     path = store_path("onnx", "fp32", "gate2.json")
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
