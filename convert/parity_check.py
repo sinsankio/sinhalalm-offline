@@ -13,10 +13,10 @@ from helaai import (
     ROOT,
     fetch,
     load_reference_model,
+    store_path,
 )
 
 GOLDEN_PATH = ROOT / "golden" / "reference.json"
-OUTPUT_DIR = ROOT / "build" / "llama"
 LOGIT_TOLERANCE = 1e-4
 RANDOM_SEQ_LEN = 512
 UNIQUE_PARAMETERS = 32_850_432
@@ -150,7 +150,7 @@ def run(save: bool) -> dict:
             and parameters == UNIQUE_PARAMETERS,
         }
         if save:
-            target = OUTPUT_DIR / model
+            target = store_path("llama", model)
             llama.save_pretrained(target, safe_serialization=True)
             generation_config().save_pretrained(target)
             reloaded = LlamaForCausalLM.from_pretrained(target).eval()
@@ -168,8 +168,9 @@ def main() -> int:
     args = parser.parse_args()
 
     report = run(save=not args.no_save)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUTPUT_DIR / "parity.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    output_dir = store_path("llama")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "parity.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     for name, result in report["models"].items():
         status = "PASS" if result["passed"] else "FAIL"
         print(

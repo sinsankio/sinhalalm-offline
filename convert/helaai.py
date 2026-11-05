@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import math
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,7 @@ from safetensors.torch import load_file
 from torch.nn import functional as F
 
 ROOT = Path(__file__).resolve().parent.parent
-CACHE_DIR = ROOT / "build" / "hf"
+STORE_DIR = Path(os.environ.get("SINHALALM_STORE") or ROOT / "build").expanduser().resolve()
 
 VOCAB_SHA256 = "5883d40718e284bcb6b4522c3f8ebda03bbeb6ab45e4c7a3cbda44274633ff38"
 BASE_WEIGHTS_SHA256 = "268958f1d7487260fe933cacd473c0c3707b192308386c383a7954e8f3905a85"
@@ -71,9 +72,19 @@ BOS_ID = 2
 EOS_ID = 3
 
 
+def store_path(*parts: str) -> Path:
+    if not STORE_DIR.is_dir():
+        if not STORE_DIR.is_relative_to(ROOT):
+            raise SystemExit(
+                f"model store {STORE_DIR} is not available; mount it or set MODEL_STORE"
+            )
+        STORE_DIR.mkdir(parents=True)
+    return STORE_DIR.joinpath(*parts)
+
+
 def fetch(model: str, filename: str) -> Path:
     spec = MODELS[model]
-    local_dir = CACHE_DIR / spec["repo"].split("/")[1]
+    local_dir = store_path("hf", spec["repo"].split("/")[1])
     path = Path(
         hf_hub_download(spec["repo"], filename, revision=spec["revision"], local_dir=local_dir)
     )
