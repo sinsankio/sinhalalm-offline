@@ -19,6 +19,8 @@ GOLDEN_LOGITS := $(SINHALALM_STORE)/golden/reference_logits.npz
 GATE1_REPORT := $(SINHALALM_STORE)/gate1/parity.json
 GOLDEN_INPUTS := convert/sinhalallm.py convert/make_golden.py golden/prompts.json uv.lock
 GATE1_INPUTS := convert/sinhalallm.py convert/parity_check.py golden/reference.json uv.lock
+TOKENIZER_CORPUS := golden/generated/tokenizer_corpus.json
+TOKENIZER_INPUTS := convert/sinhalallm.py convert/make_golden.py uv.lock
 
 .PHONY: help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert verify test-web ci
 
@@ -49,23 +51,28 @@ format: ## Apply formatters to Python and web sources
 	cd $(WEB) && $(NPM) run format
 
 $(GOLDEN_LOGITS): $(GOLDEN_INPUTS)
-	$(REF_PY) convert/make_golden.py
+	$(REF_PY) convert/make_golden.py reference
+
+$(TOKENIZER_CORPUS): $(TOKENIZER_INPUTS)
+	$(REF_PY) convert/make_golden.py tokenizer
 
 $(GATE1_REPORT): $(GATE1_INPUTS) $(GOLDEN_LOGITS)
 	$(PY) convert/parity_check.py
 
-golden: ## Regenerate golden outputs with the reference toolchain
-	$(REF_PY) convert/make_golden.py
+golden: ## Regenerate golden outputs and tokenizer cases with the reference toolchain
+	$(REF_PY) convert/make_golden.py reference
+	$(REF_PY) convert/make_golden.py tokenizer
 
-check-golden: ## Verify golden outputs are reproducible with the reference toolchain
-	$(REF_PY) convert/make_golden.py --check
+check-golden: ## Verify golden outputs and tokenizer cases are reproducible
+	$(REF_PY) convert/make_golden.py reference --check
+	$(REF_PY) convert/make_golden.py tokenizer --check
 
 convert: $(GATE1_REPORT) ## Gate 1: verify the export toolchain against the reference
 
 verify: check-golden ## Rerun golden generation and gate 1 from scratch
 	$(PY) convert/parity_check.py
 
-test-web: ## Run web unit tests
+test-web: $(TOKENIZER_CORPUS) ## Run web unit tests, including gate 3
 	cd $(WEB) && $(NPM) test
 
 ci: lint convert test-web ## Run the local CI pipeline
