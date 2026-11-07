@@ -30,6 +30,7 @@ QUANTIZED := $(foreach variant,q4-v0 q4-v0-small q8,$(SINHALALM_STORE)/onnx/$(va
 DEFAULT_VARIANT := q4-v0-small
 RQ1_DIR := $(SINHALALM_STORE)/rq1
 QUALITY_GATE := $(RQ1_DIR)/quality-gate.json
+QUALITY_GATE_Q8 := $(RQ1_DIR)/quality-gate-q8.json
 WEB_MODEL := sinhalallm-1.7b
 WEB_PACKAGE := $(SINHALALM_STORE)/web/$(WEB_MODEL)/v2.1/manifest.json
 EXPECTED_GREEDY := $(SINHALALM_STORE)/web/expected-greedy.json
@@ -125,7 +126,13 @@ $(RQ1_DIR)/gguf-q4_k_m.json: $(STAMPS)/rq1.sha256
 $(QUALITY_GATE): $(RQ1_DIR)/$(DEFAULT_VARIANT).json $(RQ1_DIR)/gguf-q4_k_m.json
 	$(PY) convert/eval_quality.py quality-gate --variant $(DEFAULT_VARIANT)
 
-$(WEB_PACKAGE): $(QUALITY_GATE) $(STAMPS)/package.sha256
+$(RQ1_DIR)/q8.json: $(SINHALALM_STORE)/onnx/q8/quantization.json $(STAMPS)/rq1.sha256
+	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q8 --questions 0
+
+$(QUALITY_GATE_Q8): $(RQ1_DIR)/q8.json $(RQ1_DIR)/gguf-q4_k_m.json
+	$(PY) convert/eval_quality.py quality-gate --variant q8
+
+$(WEB_PACKAGE): $(QUALITY_GATE) $(QUALITY_GATE_Q8) $(STAMPS)/package.sha256
 	$(PY) convert/package_web.py
 
 $(PACKAGE_PARITY): $(WEB_PACKAGE) $(STAMPS)/parity.sha256 | link-models
@@ -150,9 +157,9 @@ onnx: $(GATE2_REPORT) ## Export fp32 ONNX and run gate 2 against the reference
 
 quantize: $(ONNX_FP16) $(QUANTIZED) ## Build the fp16, q8 and q4 candidate variants
 
-quality: $(QUALITY_GATE) ## Quality gate: default variant against the author's Q4_K_M release
+quality: $(QUALITY_GATE) $(QUALITY_GATE_Q8) ## Quality gates: q4 and q8 against the author's Q4_K_M release
 
-package: $(WEB_PACKAGE) ## Package the default variant for the web application
+package: $(WEB_PACKAGE) ## Package the q4 and q8 variants for the web application
 
 link-models: ## Link the packaged model into web/public/models
 	@test -d $(SINHALALM_STORE)/web/$(WEB_MODEL) || { echo "model package missing; run make package"; exit 1; }

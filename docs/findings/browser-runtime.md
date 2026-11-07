@@ -1,6 +1,6 @@
 # Browser runtime compatibility of the q4 model
 
-The first browser test of the packaged q4-v0-small model failed while the session was created, before any token was generated. In this document, we report the cause (S10), the replacement that makes the model load in the browser runtime, and the checks that show the replacement does not change the model. The first answers in the browser then showed two speed problems, which we report as S11 (WebGPU) and S12 (WebAssembly), and the first manual test showed that Chrome on Linux does not offer hardware WebGPU by default (S13).
+The first browser test of the packaged q4-v0-small model failed while the session was created, before any token was generated. In this document, we report the cause (S10), the replacement that makes the model load in the browser runtime, and the checks that show the replacement does not change the model. The first answers in the browser then showed two speed problems, which we report as S11 (WebGPU) and S12 (WebAssembly), and the first manual test showed that Chrome on Linux does not offer hardware WebGPU by default (S13). Measuring the acceptance targets then showed four problems with how the model files are stored and loaded (S14–S17).
 
 ### 1. The failure
 
@@ -75,3 +75,52 @@ The rewrites of S10 and S11 do not affect this, since they touch only the embedd
 | `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan` | NVIDIA, Ampere architecture |
 
 The application rejects software adapters, since they run on the processor and would be slower than WebAssembly. Visitors who use Chrome on Linux therefore get the WebAssembly speed of S12 unless they start Chrome with these flags. The application now says why it runs on the processor and, on Linux, shows the command with a separate profile, since the flags enable WebGPU features that Chrome has not yet approved for Linux.
+
+### 8. Weights inside the graph file double the memory
+
+**S14 — With the weights inside the ONNX file, ONNX Runtime keeps a second copy in its WebAssembly heap.** The Diagnostics tab measured 2.67 GB of page memory for q4 on WebGPU and on WebAssembly, almost all of it in the inference worker, and the renderer process used 3.8 GB. ONNX Runtime reads the whole file into its WebAssembly heap and copies the weights out of it, and WebAssembly memory never shrinks.
+
+Storing the same weights in a separate data file (`model_q4.onnx_data`) avoids the copy, without changing any value:
+
+| q4, greedy answer to the first golden question | Page memory | Answer |
+|---|---|---|
+| Weights inside the graph file, WebGPU | 2.67 GB | correct |
+| Separate data file, WebGPU | 0.06 GB | identical |
+| Separate data file, WebAssembly | 1.88 GB | identical |
+
+On WebGPU, the weights now go to the GPU without passing through the heap. The download size is unchanged.
+
+### 9. A 2.48 GB data file never finishes loading
+
+**S15 — transformers.js cannot load a single external data file of 2.48 GB.** The q8 graph file loaded, but its data file never reported any progress, and the load did not finish within 15 minutes, while the server delivered the file in 3 s. Split into two files of 1.24 GB (`model_quantized.onnx_data` and `model_quantized.onnx_data_1`), which transformers.js loads as numbered parts, q8 loaded in 13 s. The packaging step now writes q4 as one data file and q8 as two.
+
+### 10. Large files are not cached from memory
+
+**S16 — Chrome failed to cache the 1.18 GB data file from an in-memory buffer.** transformers.js stores each downloaded file in Cache Storage from the buffer it has read. For the data file, `Cache.put` failed with an internal error, so the model was downloaded again on every visit and was not available offline. The worker now downloads the model files itself and streams each response into the cache, which Chrome stored without errors, and transformers.js then loads the files from the cache. This also gives one progress bar for all files of a variant.
+
+### 11. A nearly full disk
+
+**S17 — Chrome stops storing data well before the reported quota when the disk is nearly full.** With about 6 GB free on the disk, Chrome reported a quota of 11.9 GB, but storing q8 failed after 2.15 GB with a network error. With the browser profile in memory, the same download succeeded. The application now checks the quota before a download, removes the parts of a failed download, and says that the disk may be too full.
+
+### 12. The 8-bit variant
+
+On FLORES+ (1,012 sentences), q8 has a perplexity of 115.5, against 113.2 for fp32 (+2.0%), 158.0 for q4 and 195.0 for the author's Q4_K_M, so it passes the quality gate. On WebGPU, with the files split as in S15, it reached the same speed as q4:
+
+| Variant, WebGPU (RTX 3060 Laptop GPU) | Download | Load from the network | Median first token | Median speed | Renderer process |
+|---|---|---|---|---|---|
+| q4 | 1.18 GB | 7.4 to 28.3 s | 69 ms | 26.5 tokens/s | 1.37 GB |
+| q8 | 2.48 GB | 12.8 s | 76 ms | 26.6 tokens/s | 1.99 GB |
+
+The medians come from the benchmark in the Diagnostics tab (five sample questions, greedy decoding, up to 64 tokens). On WebAssembly, q8 is not practical, since its 8-bit matrix products have no fast kernel either (S12).
+
+### 13. Acceptance targets
+
+| Target | q4 on WebGPU | q4 on WebAssembly | Result |
+|---|---|---|---|
+| Download at most 1.2 GB | 1.18 GB | 1.18 GB | met |
+| Peak tab memory at most 2 GB | page 0.09 GB, renderer 1.37 GB | page 1.78 GB, renderer 2.35 GB | met by the browser's measurement; the renderer process on WebAssembly is 2.35 GB |
+| Warm load at most 10 s | 3.7 s + 0.7 s warm-up | 2.8 to 3.2 s + 4.1 to 5.3 s warm-up | met |
+| First token at most 1 s (WebGPU) or 3 s (WebAssembly), about 60 prompt tokens | 484 ms with 52 prompt tokens | 5.2 s with 52 prompt tokens, about 2 s for short questions | met on WebGPU, missed on WebAssembly |
+| At least 20 tokens per second on WebGPU | 26.5 to 27.3 | 0.5 (no target, S12) | met |
+
+All values come from headless Chrome on the RTX 3060 Laptop GPU and its 8-core CPU. Page memory is the browser's own measurement of the page and its workers, without GPU memory; renderer is the resident memory of the tab's process.

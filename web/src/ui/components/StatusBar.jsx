@@ -1,4 +1,4 @@
-import { MODEL } from "../content.js";
+import { VARIANTS } from "../../worker/variants.js";
 import useOnline from "../useOnline.js";
 import GpuHint from "./GpuHint.jsx";
 
@@ -14,7 +14,7 @@ function describe(model) {
   const { state, runtime, progress } = model;
   if (state === "checking") return "Checking whether the model is already on this device…";
   if (state === "download-required")
-    return `The model (${MODEL.downloadGb} GB) is not on this device yet.`;
+    return `The model (${VARIANTS[model.dtype].downloadGb} GB) is not on this device yet.`;
   if (state === "loading") {
     if (model.fromCache) return "Loading the model from this device…";
     if (progress?.total)
@@ -61,7 +61,7 @@ export default function StatusBar({ model, locked, onLoad }) {
             disabled={!online}
             onClick={() => onLoad("auto")}
           >
-            Download model ({MODEL.downloadGb} GB)
+            Download model ({VARIANTS[model.dtype].downloadGb} GB)
           </button>
           {!online && (
             <p className="status-detail">
