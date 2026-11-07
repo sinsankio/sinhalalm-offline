@@ -410,6 +410,35 @@ a {
   margin-top: 12px;
 }
 
+.gpu-hint {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--notice-border);
+  border-radius: 10px;
+  background: var(--notice);
+  font-size: 0.9rem;
+}
+
+.gpu-hint p {
+  margin: 0 0 6px;
+}
+
+.gpu-hint summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.gpu-hint code {
+  display: block;
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
 .status-detail {
   margin: 8px 0 0;
   color: var(--error);

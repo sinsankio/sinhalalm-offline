@@ -7,7 +7,7 @@ import {
 } from "@huggingface/transformers";
 import { createEntityDecoder, decodeEntities } from "../text/entities.js";
 import { buildMessages, generationOptions, generationStats, stopReason } from "./generation.js";
-import { describeAdapter, isSoftwareAdapter, wasmThreads } from "./runtime.js";
+import { describeAdapter, gpuSupport, wasmThreads, webgpuUnavailableMessage } from "./runtime.js";
 import { createStopSignal } from "./stop-signal.js";
 
 const MODEL_ID = "sinhalallm-1.7b/v2.1";
@@ -37,19 +37,15 @@ class StopOnSignal extends InterruptableStoppingCriteria {
 const post = (type, payload = {}) => self.postMessage({ type, ...payload });
 
 async function chooseDevice(preferred) {
-  if (preferred !== "wasm" && self.navigator.gpu) {
-    const adapter = await self.navigator.gpu.requestAdapter({
-      powerPreference: "high-performance",
-    });
-    if (adapter && !isSoftwareAdapter(adapter.info)) {
-      return { device: "webgpu", adapter: describeAdapter(adapter.info) };
-    }
-    if (preferred === "webgpu") {
-      throw new Error("No hardware WebGPU adapter is available in this browser.");
-    }
-    return { device: "wasm", adapter: adapter ? describeAdapter(adapter.info) : null };
-  }
-  return { device: "wasm", adapter: null };
+  const adapter =
+    preferred !== "wasm" && self.navigator.gpu
+      ? await self.navigator.gpu.requestAdapter({ powerPreference: "high-performance" })
+      : null;
+  const gpu = preferred === "wasm" ? null : gpuSupport(adapter?.info ?? null);
+  const described = adapter ? describeAdapter(adapter.info) : null;
+  if (gpu === "hardware") return { device: "webgpu", adapter: described, gpu };
+  if (preferred === "webgpu") throw new Error(webgpuUnavailableMessage(gpu));
+  return { device: "wasm", adapter: described, gpu };
 }
 
 async function isCached() {
@@ -87,7 +83,7 @@ async function load({ preferred = "auto" } = {}) {
   await unload();
   const started = performance.now();
   const fromCache = await isCached();
-  const { device, adapter } = await chooseDevice(preferred);
+  const { device, adapter, gpu } = await chooseDevice(preferred);
   const threads = wasmThreads(self.navigator.hardwareConcurrency, self.crossOriginIsolated);
   env.backends.onnx.wasm.numThreads = threads;
   post("status", { state: "loading", device, fromCache });
@@ -111,6 +107,7 @@ async function load({ preferred = "auto" } = {}) {
     dtype: "q4",
     device,
     adapter,
+    gpu,
     wasmThreads: device === "wasm" ? threads : null,
     crossOriginIsolated: self.crossOriginIsolated,
     fromCache,

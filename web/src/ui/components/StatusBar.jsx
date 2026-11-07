@@ -1,4 +1,5 @@
 import { MODEL } from "../content.js";
+import GpuHint from "./GpuHint.jsx";
 
 const BACKENDS = [
   { value: "auto", label: "Auto" },
@@ -74,6 +75,9 @@ export default function StatusBar({ model, locked, onLoad }) {
           <dt>Isolated</dt>
           <dd>{runtime.crossOriginIsolated ? "yes" : "no"}</dd>
         </dl>
+      )}
+      {state === "ready" && runtime.device === "wasm" && runtime.gpu && (
+        <GpuHint gpu={runtime.gpu} />
       )}
       {(state === "ready" || state === "error") && (
         <div className="backend-switch" role="group" aria-label="Backend">

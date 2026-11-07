@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { describeAdapter, isSoftwareAdapter, wasmThreads } from "../src/worker/runtime.js";
+import {
+  describeAdapter,
+  gpuSupport,
+  isLinuxDesktop,
+  isSoftwareAdapter,
+  wasmThreads,
+  webgpuUnavailableMessage,
+} from "../src/worker/runtime.js";
 
 describe("isSoftwareAdapter", () => {
   it.each([
@@ -47,5 +54,29 @@ describe("describeAdapter", () => {
       description: "",
       isFallbackAdapter: false,
     });
+  });
+});
+
+describe("gpuSupport", () => {
+  it("distinguishes hardware, software and missing adapters", () => {
+    expect(gpuSupport({ vendor: "nvidia", architecture: "ampere" })).toBe("hardware");
+    expect(gpuSupport({ vendor: "google", architecture: "swiftshader" })).toBe("software");
+    expect(gpuSupport(null)).toBe("none");
+  });
+
+  it("explains why WebGPU cannot be used", () => {
+    expect(webgpuUnavailableMessage("software")).toMatch(/only in software/);
+    expect(webgpuUnavailableMessage("none")).toMatch(/does not offer WebGPU/);
+  });
+});
+
+describe("isLinuxDesktop", () => {
+  it.each([
+    ["Linux", "Mozilla/5.0 (X11; Linux x86_64)", true],
+    ["Linux armv8l", "Mozilla/5.0 (Linux; Android 14)", false],
+    ["Linux", "Mozilla/5.0 (X11; CrOS x86_64 16000.0.0)", false],
+    ["Windows", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", false],
+  ])("%s / %s", (platform, userAgent, expected) => {
+    expect(isLinuxDesktop(platform, userAgent)).toBe(expected);
   });
 });
