@@ -63,6 +63,7 @@ make quantize # build the fp16, q8 and q4 candidate variants (needs about 13 GB 
 make quality # quality gate: the default variant (q4-v0-small) against the author's Q4_K_M release
 make package # package the default variant for the web app and link it into web/public/models
 make check-package # verify the packaged model in transformers.js against Python
+make e2e     # browser tests in Chrome, including gate 4 and offline mode (about 9 minutes; downloads the model into a temporary profile)
 make rq1     # RQ1: perplexity and answer agreement of every candidate (slow; needs FLORES+ access)
 make verify  # rerun golden generation and gate 1 from scratch
 make ci      # run the local CI pipeline

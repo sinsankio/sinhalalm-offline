@@ -414,7 +414,7 @@ flowchart LR
 | 4 | Default quantized variant in Python ONNX Runtime vs the same file in the browser (WASM) | identical greedy output on golden questions |
 | Quality | Shipped variant vs the author's Q4_K_M release | perplexity no higher on the same FLORES+ sentences, and answers reviewed by a native speaker |
 
-Gate 4 compares the same quantized file in two runtimes, rather than the fp32 model, since a 1.74B model in fp32 (about 7 GB) most likely exceeds what the WASM backend can address. In this way, gate 4 still confirms that the browser runtime adds no drift of its own.
+Gate 4 compares the same quantized file in two runtimes, rather than the fp32 model, since a 1.74B model in fp32 (about 7 GB) most likely exceeds what the WASM backend can address. In this way, gate 4 still confirms that the browser runtime adds no drift of its own. Gate 4 runs the ten golden questions in Chrome on the WASM backend with greedy decoding and ZWJ normalization turned off, so that both runtimes receive the same prompt, and compares the first 32 generated tokens of each answer, which keeps the run at about seven minutes.
 
 #### 6.2 Unit and integration tests
 
