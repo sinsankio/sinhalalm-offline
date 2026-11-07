@@ -5,7 +5,7 @@ const gigabytes = (bytes) => `${(bytes / 1e9).toFixed(2)} GB`;
 export default function StorageControl({ storage, model, locked, onRemove }) {
   const [confirming, setConfirming] = useState(false);
   const busy = locked || ["checking", "loading", "warming", "removing"].includes(model.state);
-  const hasModel = model.state === "ready" || model.state === "error";
+  const hasModel = model.state === "ready" || Object.values(model.cached ?? {}).some(Boolean);
 
   return (
     <section className="panel storage">
@@ -30,13 +30,13 @@ export default function StorageControl({ storage, model, locked, onRemove }) {
           disabled={busy}
           onClick={() => setConfirming(true)}
         >
-          Delete downloaded model
+          Delete downloaded models
         </button>
       )}
       {hasModel && confirming && (
         <div className="confirm">
           <p>
-            Delete the model from this browser? You will need to download it again (about 1.19 GB)
+            Delete all downloaded models from this browser? You will need to download a model again
             before you can ask questions.
           </p>
           <div className="confirm-actions">
