@@ -114,8 +114,7 @@ def portable_embedding(model: onnx.ModelProto) -> bool:
     graph.initializer.extend(
         [
             numpy_helper.from_array(packed.copy(), name("packed")),
-            numpy_helper.from_array(np.array(15, np.uint8), name("low_mask")),
-            numpy_helper.from_array(np.array(4, np.uint8), name("shift")),
+            numpy_helper.from_array(np.array(16, np.int32), name("sixteen")),
             numpy_helper.from_array(np.array([-1], np.int64), name("last_axis")),
             numpy_helper.from_array(np.array([0, 0, hidden], np.int64), name("hidden_shape")),
             numpy_helper.from_array(
@@ -126,10 +125,10 @@ def portable_embedding(model: onnx.ModelProto) -> bool:
     )
     replacement = [
         helper.make_node("Gather", [name("packed"), ids_name], [name("rows")], axis=0),
-        helper.make_node("BitwiseAnd", [name("rows"), name("low_mask")], [name("low")]),
-        helper.make_node(
-            "BitShift", [name("rows"), name("shift")], [name("high")], direction="RIGHT"
-        ),
+        helper.make_node("Cast", [name("rows")], [name("rows_int")], to=TensorProto.INT32),
+        helper.make_node("Div", [name("rows_int"), name("sixteen")], [name("high")]),
+        helper.make_node("Mul", [name("high"), name("sixteen")], [name("high_scaled")]),
+        helper.make_node("Sub", [name("rows_int"), name("high_scaled")], [name("low")]),
         helper.make_node("Unsqueeze", [name("low"), name("last_axis")], [name("low_axis")]),
         helper.make_node("Unsqueeze", [name("high"), name("last_axis")], [name("high_axis")]),
         helper.make_node("Concat", [name("low_axis"), name("high_axis")], [name("pairs")], axis=-1),
@@ -150,7 +149,24 @@ def portable_embedding(model: onnx.ModelProto) -> bool:
     return True
 
 
-def quantize_nbits(target: Path, spec: dict) -> bool:
+def portable_isnan(model: onnx.ModelProto) -> int:
+    graph = model.graph
+    nodes = [node for node in graph.node if node.op_type == "IsNaN"]
+    for node in nodes:
+        (value,) = node.input
+        equal = f"{node.name}/self_equal"
+        index = list(graph.node).index(node)
+        graph.node.remove(node)
+        graph.node.insert(index, helper.make_node("Not", [equal], list(node.output)))
+        graph.node.insert(index, helper.make_node("Equal", [value, value], [equal]))
+    return len(nodes)
+
+
+def portable_graph(model: onnx.ModelProto) -> dict:
+    return {"embedding": portable_embedding(model), "isnan": portable_isnan(model)}
+
+
+def quantize_nbits(target: Path, spec: dict) -> dict:
     model = fp32_model()
     options = {
         "bits": spec["bits"],
@@ -182,7 +198,7 @@ def quantize_nbits(target: Path, spec: dict) -> bool:
         )
     quantizer = MatMulNBitsQuantizer(model, **options)
     quantizer.process()
-    portable = portable_embedding(quantizer.model.model)
+    portable = portable_graph(quantizer.model.model)
     save(quantizer.model.model, target)
     return portable
 
@@ -211,7 +227,7 @@ def main() -> int:
     report = {
         "variant": args.variant,
         "settings": spec,
-        "portable_embedding": portable,
+        "portable": portable,
         "file": target.name,
         "bytes": sum(files.values()),
         "files": files,
