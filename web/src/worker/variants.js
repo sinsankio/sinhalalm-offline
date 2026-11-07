@@ -10,12 +10,16 @@ export const COMMON_FILES = [
 export const VARIANTS = Object.freeze({
   q4: {
     label: "4-bit",
+    summary: "Faster, smaller download",
+    strength: 2,
     downloadGb: 1.19,
     files: ["onnx/model_q4.onnx", "onnx/model_q4.onnx_data"],
     externalData: 1,
   },
   q8: {
     label: "8-bit",
+    summary: "More accurate, larger download",
+    strength: 4,
     downloadGb: 2.48,
     files: [
       "onnx/model_quantized.onnx",

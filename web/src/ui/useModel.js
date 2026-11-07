@@ -126,6 +126,7 @@ export default function useModel({ onEvent } = {}) {
           setModel({ ...INITIAL, dtype, state: "download-required", cached: data.cached });
         }
       } else if (data.type === "status") {
+        if (data.state === "idle") return;
         setModel((current) => ({
           ...current,
           state: data.state,
@@ -186,6 +187,26 @@ export default function useModel({ onEvent } = {}) {
     workerRef.current?.postMessage({ type: "load", preferred, dtype: variant });
   }, []);
 
+  const select = useCallback(
+    (dtype, cached, preferred) => {
+      if (cached) {
+        load(preferred, dtype);
+        return;
+      }
+      dtypeRef.current = dtype;
+      saveVariant(dtype);
+      runtimeRef.current = null;
+      workerRef.current?.postMessage({ type: "unload" });
+      setModel((current) => ({
+        ...INITIAL,
+        dtype,
+        state: "download-required",
+        cached: current.cached,
+      }));
+    },
+    [load],
+  );
+
   const remove = useCallback((dtype = null) => {
     setModel((current) =>
       dtype && !(current.state === "ready" && current.dtype === dtype)
@@ -214,5 +235,5 @@ export default function useModel({ onEvent } = {}) {
     workerRef.current?.postMessage({ type: "stop" });
   }, []);
 
-  return { model, storage, answer, load, remove, ask, stop };
+  return { model, storage, answer, load, select, remove, ask, stop };
 }

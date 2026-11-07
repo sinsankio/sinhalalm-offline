@@ -1,6 +1,6 @@
 import { DEFAULT_SETTINGS, SAMPLE_QUESTIONS } from "./content.js";
 
-export const BENCHMARK_QUESTIONS = SAMPLE_QUESTIONS.slice(0, 5);
+export const BENCHMARK_QUESTIONS = SAMPLE_QUESTIONS;
 export const BENCHMARK_SETTINGS = { ...DEFAULT_SETTINGS, temperature: 0, maxNewTokens: 64 };
 
 export function median(values) {
@@ -15,6 +15,7 @@ export function summarizeBenchmark(results) {
   return {
     questions: results.length,
     answered: answered.length,
+    totalMs: answered.reduce((sum, result) => sum + (result.stats.totalMs ?? 0), 0),
     medianFirstTokenMs: median(answered.map((result) => result.stats.firstTokenMs)),
     medianTokensPerSecond: median(answered.map((result) => result.stats.tokensPerSecond)),
     tokens: answered.reduce((sum, result) => sum + result.stats.newTokens, 0),

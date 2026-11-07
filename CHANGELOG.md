@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### fix/diagnostics-ui — Review of the Diagnostics tab and variant choice
+
+#### Fixed
+
+- After the last benchmark question, the button read "Running 6 of 5…" while the page memory was measured. It now reads "Asking n of 13…" and then "Measuring memory…".
+- The "About the model" card always described the 4-bit model. It now follows the chosen variant.
+
+#### Added
+
+- The benchmark asks all 13 sample questions instead of five, and opens a dialog with the results when it finishes: variant, backend, answered questions, median first token, median speed, tokens, total generation time and page memory.
+- A variant picker in the model panel of the Ask tab, with a signal-strength icon for each variant (two of four bars for 4-bit, four for 8-bit) and a short description. A downloaded variant loads when it is chosen; a variant that is not downloaded is only selected, and the panel offers its download with the size. The Diagnostics tab keeps its download, load and delete buttons for each variant.
+
 ### feat/zwj-restoration — ZWJ in displayed answers (RQ3)
 
 #### Added

@@ -1,6 +1,8 @@
+import { VARIANTS } from "../../worker/variants.js";
 import { MODEL } from "../content.js";
 
-export default function Credits() {
+export default function Credits({ dtype }) {
+  const variant = VARIANTS[dtype] ?? VARIANTS.q4;
   return (
     <section className="panel credits">
       <h2 className="panel-label">About the model</h2>
@@ -15,8 +17,8 @@ export default function Credits() {
         .
       </p>
       <p>
-        This page runs a 4-bit version of the model, about {MODEL.downloadGb} GB, which is
-        downloaded once and then kept in your browser.
+        This page runs the {variant.label} version of the model, about {variant.downloadGb} GB,
+        which is downloaded once and then kept in your browser.
       </p>
     </section>
   );

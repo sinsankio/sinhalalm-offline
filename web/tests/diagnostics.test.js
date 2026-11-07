@@ -16,6 +16,7 @@ describe("summarizeBenchmark", () => {
       firstTokenMs,
       tokensPerSecond,
       newTokens,
+      totalMs: firstTokenMs * 10,
     });
     expect(
       summarizeBenchmark([
@@ -26,6 +27,7 @@ describe("summarizeBenchmark", () => {
     ).toEqual({
       questions: 3,
       answered: 2,
+      totalMs: 4000,
       medianFirstTokenMs: 200,
       medianTokensPerSecond: 25,
       tokens: 30,
