@@ -1,4 +1,5 @@
-export const MODEL_ID = "sinhalallm-1.7b/v2.1";
+import { MODEL_SOURCE } from "./source.js";
+
 export const DEFAULT_VARIANT = "q8";
 export const FALLBACK_VARIANT = "q4";
 export const COMMON_FILES = [
@@ -31,8 +32,12 @@ export const VARIANTS = Object.freeze({
   },
 });
 
-export function variantFileUrls(dtype, origin) {
-  return VARIANTS[dtype].files.map((file) => new URL(`/models/${MODEL_ID}/${file}`, origin).href);
+export function modelFileUrl(file, origin, source = MODEL_SOURCE) {
+  return new URL(`${source.base}${file}`, origin).href;
+}
+
+export function variantFileUrls(dtype, origin, source = MODEL_SOURCE) {
+  return VARIANTS[dtype].files.map((file) => modelFileUrl(file, origin, source));
 }
 
 export function combinedProgress(files) {

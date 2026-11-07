@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { formatBytes, formatMs, median, summarizeBenchmark } from "../src/ui/diagnostics.js";
-import { combinedProgress, initialVariant, variantFileUrls } from "../src/worker/variants.js";
+import { modelSource } from "../src/worker/source.js";
+import {
+  combinedProgress,
+  initialVariant,
+  modelFileUrl,
+  variantFileUrls,
+} from "../src/worker/variants.js";
 
 describe("median", () => {
   it("handles odd, even and empty inputs", () => {
@@ -79,5 +85,23 @@ describe("initialVariant", () => {
   it("respects the reader's choice", () => {
     expect(initialVariant({ saved: "q8", cached: {}, gpu: "none" })).toBe("q8");
     expect(initialVariant({ saved: "q4", cached: { q8: true }, gpu: "hardware" })).toBe("q4");
+  });
+});
+
+describe("modelSource", () => {
+  it("uses the local package without a repository", () => {
+    expect(modelSource({})).toEqual({
+      remote: false,
+      id: "sinhalallm-1.7b/v2.1",
+      revision: "main",
+      base: "/models/sinhalallm-1.7b/v2.1/",
+    });
+  });
+
+  it("pins a Hub repository to a revision", () => {
+    const source = modelSource({ repo: "user/model", revision: "abc123" });
+    expect(modelFileUrl("onnx/model_q4.onnx", "https://app.example", source)).toBe(
+      "https://huggingface.co/user/model/resolve/abc123/onnx/model_q4.onnx",
+    );
   });
 });
