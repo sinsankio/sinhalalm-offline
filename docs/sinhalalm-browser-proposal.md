@@ -306,7 +306,7 @@ The fp32 export of a 1.74B model needs about 7 GB of disk for the raw export and
 
 #### 5.6 Phase 5: Quality evaluation before the UI (RQ1)
 
-For each variant, we compute perplexity on the held-out set with ONNX Runtime in Python, together with the greedy agreement rate against fp32 on the golden questions. Since tokenizers differ between models, bits per character are reported alongside perplexity. The shipped default is the smallest variant whose perplexity stays within 2% of fp32 and whose download stays within NFR5. Since the browser application is built only after this step, a variant that fails here never reaches the reader.
+For each variant, we compute perplexity on the held-out set with ONNX Runtime in Python, together with the greedy agreement rate against fp32 on the golden questions. Since tokenizers differ between models, bits per character are reported alongside perplexity. The proposal originally shipped the smallest variant whose perplexity stays within 2% of fp32. RQ1 showed that no 4-bit variant of this model can meet that margin, and that even the author's own 4-bit release (Q4_K_M) loses about 50% ([rq1-quantization.md](findings/rq1-quantization.md)). The quality gate therefore requires the shipped variant to be at least as good as the author's 4-bit release on the same FLORES+ sentences, together with a review of its answers by a native speaker. The shipped default is q4-v0-small (1.18 GB), which keeps the value projection of layer 0 in fp32 and stays within NFR5, while q8 is kept as an optional higher-quality variant if it proves fast enough on WebGPU (RQ2). Since the browser application is built only after this step, a variant that fails here never reaches the reader.
 
 #### 5.7 Phase 6: Browser application
 
@@ -397,7 +397,7 @@ flowchart LR
 | 2 | Export load (PyTorch, through the golden logits) vs ONNX fp32 | max \|logit diff\| below 1e-4 of each position's largest absolute logit, identical top-1 token at every position and identical greedy output |
 | 3 | Python `tokenizers` vs transformers.js tokenizer | identical IDs on 10,000 sentences and identical chat-template strings |
 | 4 | Default quantized variant in Python ONNX Runtime vs the same file in the browser (WASM) | identical greedy output on golden questions |
-| Quality | Quantized vs fp32 | perplexity within 2% of fp32 |
+| Quality | Shipped variant vs the author's Q4_K_M release | perplexity no higher on the same FLORES+ sentences, and answers reviewed by a native speaker |
 
 Gate 4 compares the same quantized file in two runtimes, rather than the fp32 model, since a 1.74B model in fp32 (about 7 GB) most likely exceeds what the WASM backend can address. In this way, gate 4 still confirms that the browser runtime adds no drift of its own.
 
