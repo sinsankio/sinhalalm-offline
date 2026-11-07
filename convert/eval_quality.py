@@ -35,6 +35,8 @@ VARIANTS = {
     "q4-v0-small": "q4-v0-small/onnx/model_q4.onnx",
 }
 TEXT_START_ID = 0
+DEFAULT_VARIANT = "q4-v0-small"
+REFERENCE_GGUF = "SinhalaLLM-v2.1-Q4_K_M.gguf"
 
 
 class OnnxCausalLM:
@@ -202,6 +204,63 @@ def rq1(variant: str, sentences: int | None, questions: int) -> dict:
     }
 
 
+def reference_gguf(sentences: int | None) -> dict:
+    import torch
+    from transformers import LlamaForCausalLM
+
+    from sinhalallm import REPO, REVISION
+
+    path = Path(
+        hf_hub_download(REPO, REFERENCE_GGUF, revision=REVISION, local_dir=store_path("hf", "gguf"))
+    )
+    model = LlamaForCausalLM.from_pretrained(
+        path.parent, gguf_file=path.name, dtype=torch.float32
+    ).eval()
+    tokenizer = Tokenizer.from_file(str(model_dir() / "tokenizer.json"))
+    per_sentence, nll, tokens, chars = [], 0.0, 0, 0
+    with torch.no_grad():
+        for sentence in flores_sentences()[:sentences]:
+            ids = tokenizer.encode(sentence, add_special_tokens=False).ids
+            log_probs = model(torch.tensor([[TEXT_START_ID, *ids[:-1]]])).logits[0].log_softmax(-1)
+            sentence_nll = -float(log_probs[torch.arange(len(ids)), torch.tensor(ids)].sum())
+            per_sentence.append([round(sentence_nll, 5), len(ids), len(sentence)])
+            nll, tokens, chars = nll + sentence_nll, tokens + len(ids), chars + len(sentence)
+    return {
+        "variant": "gguf-q4_k_m",
+        "file": REFERENCE_GGUF,
+        "rope_theta": model.config.rope_theta,
+        "perplexity": {
+            "sentences": len(per_sentence),
+            "tokens": tokens,
+            "characters": chars,
+            "perplexity": math.exp(nll / tokens),
+            "bits_per_character": nll / math.log(2) / chars,
+            "per_sentence_nll_tokens_chars": per_sentence,
+        },
+    }
+
+
+def quality_gate(variant: str) -> dict:
+    results = store_path("rq1")
+    candidate = json.loads((results / f"{variant}.json").read_text())["perplexity"]
+    reference = json.loads((results / "gguf-q4_k_m.json").read_text())["perplexity"]
+    count = min(len(candidate["per_sentence_nll_tokens_chars"]), reference["sentences"])
+
+    def subset(scores: dict) -> float:
+        rows = scores["per_sentence_nll_tokens_chars"][:count]
+        return math.exp(sum(row[0] for row in rows) / sum(row[1] for row in rows))
+
+    candidate_ppl, reference_ppl = subset(candidate), subset(reference)
+    return {
+        "variant": variant,
+        "reference": REFERENCE_GGUF,
+        "sentences": count,
+        "perplexity": candidate_ppl,
+        "reference_perplexity": reference_ppl,
+        "passed": candidate_ppl <= reference_ppl,
+    }
+
+
 def run_rq1(args: argparse.Namespace) -> int:
     report = rq1(args.variant, args.sentences, args.questions)
     output = store_path("rq1")
@@ -218,13 +277,29 @@ def run_rq1(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gate 2 and RQ1 quality evaluation.")
-    parser.add_argument("target", choices=("gate2", "rq1"))
-    parser.add_argument("--variant", choices=VARIANTS, default="fp32")
+    parser.add_argument("target", choices=("gate2", "rq1", "reference-gguf", "quality-gate"))
+    parser.add_argument("--variant", choices=VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--sentences", type=int, help="limit the FLORES+ sentences")
     parser.add_argument("--questions", type=int, default=10, help="golden questions to generate")
     args = parser.parse_args()
     if args.target == "rq1":
         return run_rq1(args)
+    if args.target == "reference-gguf":
+        report = reference_gguf(args.sentences)
+        output = store_path("rq1")
+        output.mkdir(parents=True, exist_ok=True)
+        (output / "gguf-q4_k_m.json").write_text(json.dumps(report, indent=2) + "\n")
+        print(f"reference {REFERENCE_GGUF}: ppl={report['perplexity']['perplexity']:.3f}")
+        return 0
+    if args.target == "quality-gate":
+        report = quality_gate(args.variant)
+        store_path("rq1", "quality-gate.json").write_text(json.dumps(report, indent=2) + "\n")
+        status = "PASS" if report["passed"] else "FAIL"
+        print(
+            f"quality gate {report['variant']}: {status} ppl={report['perplexity']:.3f} "
+            f"reference={report['reference_perplexity']:.3f} on {report['sentences']} sentences"
+        )
+        return 0 if report["passed"] else 1
     report = gate2(store_path("onnx", "fp32", "model.onnx"))
     path = store_path("onnx", "fp32", "gate2.json")
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
