@@ -189,6 +189,12 @@ body {
   border-color: var(--accent);
 }
 
+.chip-more {
+  background: transparent;
+  border-style: dashed;
+  color: var(--accent);
+}
+
 .actions {
   display: flex;
   align-items: center;
