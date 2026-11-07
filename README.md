@@ -13,11 +13,11 @@ The full design is described in the [project proposal](docs/sinhalalm-browser-pr
 Rather than porting a custom runtime, the project treats the deployment as a sequence of verifiable transformations. Each step must reproduce the output of the previous step within a defined tolerance before the next step begins.
 
 - **Reference load** — the model is loaded in the export toolchain with a translated configuration, since `transformers` 4.57 otherwise reads its RoPE base as 10000 instead of 130000, and gate 1 verifies the load against `transformers` 5.19.
-- **ONNX export and quantization** — the model is exported with key-value caching and quantized into fp16, q8 and q4 variants.
+- **ONNX export and quantization** — the model is exported with key-value caching and quantized into fp16, q8 and q4 variants. Operators that the browser runtime lacks or runs on the CPU are rewritten into equivalent ones, with identical logits.
 - **Tokenizer** — the transformers.js tokenizer is verified against the Python tokenizer, so that the browser produces the exact token IDs the model was trained on.
 - **ZWJ handling** — the zero-width joiner in the reader's question is normalized to the 15 conjunct clusters the model learned with it (for example, `ප්ර` becomes `ප්‍ර`, while `ව්‍ය` becomes `ව්ය`), and HTML entities are decoded in the output.
-- **Browser runtime** — transformers.js runs the model in a Web Worker on WebGPU, with a WebAssembly fallback.
-- **Offline layer** — a service worker and the browser's Cache Storage keep the page and the model available without a connection.
+- **Browser runtime** — transformers.js runs the model in a Web Worker on WebGPU, with a slower WebAssembly fallback. The 4-bit model (1.19 GB) is the default, and the 8-bit model (2.48 GB) is an optional download. Both store their weights in separate data files, which keeps the page memory low, and the answers are streamed with the ZWJ kept in conjuncts.
+- **Offline layer** — a service worker keeps the page available without a connection, and the worker streams the model files into the browser's Cache Storage, where they stay until the reader deletes them.
 
 ### Project status
 
@@ -27,9 +27,9 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | 1 | Model selection, reference outputs and configuration translation (gate 1) | Done |
 | 2 | Tokenizer parity (gate 3) and ZWJ handling | Done |
 | 3 | ONNX export (gate 2), quantization and RQ1 | Done |
-| 4 | Browser application, offline mode and gate 4 | In progress |
+| 4 | Browser application, offline mode, gate 4, Diagnostics tab and acceptance targets | Done |
 | 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
-| 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned |
+| 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned; the ZWJ in the output is measured |
 
 Research results are summarized in [FINDINGS.md](FINDINGS.md), the answers of the quantization candidates are compared in [docs/quantization-comparison.md](docs/quantization-comparison.md), the answers of SinhalaLLM-1.7B on the golden questions are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
 
@@ -41,11 +41,13 @@ sinhalalm-web/
 ├── golden/           # fixtures shared by the Python and JavaScript tests
 ├── docs/             # proposal and per-topic findings
 ├── web/
-│   ├── src/text/
-│   ├── src/worker/
-│   ├── src/ui/
-│   ├── public/models/<model>/<version>/
-│   └── tests/
+│   ├── src/text/     # ZWJ handling and HTML entity decoding
+│   ├── src/worker/   # inference worker: download, variants, generation
+│   ├── src/ui/       # React interface: Ask and Diagnostics tabs
+│   ├── src/sw/       # service worker template for offline mode
+│   ├── public/models/<model>/<version>/   # link into the model store
+│   ├── tests/        # unit tests, gate 3 and package parity
+│   └── e2e/          # Playwright browser tests, including gate 4
 └── Makefile          # local CI pipeline
 ```
 
@@ -60,8 +62,8 @@ make convert # gate 1: verify the export toolchain (transformers 4.57.6) against
 make test-web # web unit tests, including gate 3 (tokenizer parity on 10,000 sentences)
 make onnx    # export fp32 ONNX and run gate 2 (needs about 11.5 GB of free memory)
 make quantize # build the fp16, q8 and q4 candidate variants (needs about 13 GB of free memory)
-make quality # quality gate: the default variant (q4-v0-small) against the author's Q4_K_M release
-make package # package the default variant for the web app and link it into web/public/models
+make quality # quality gates: q4-v0-small and q8 against the author's Q4_K_M release (q8 takes about an hour)
+make package # package q4 and q8 for the web app and link them into web/public/models
 make check-package # verify the packaged model in transformers.js against Python
 make e2e     # browser tests in Chrome, including gate 4 and offline mode (about 9 minutes; downloads the model into a temporary profile)
 make rq1     # RQ1: perplexity and answer agreement of every candidate (slow; needs FLORES+ access)
