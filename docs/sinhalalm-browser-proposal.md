@@ -181,9 +181,9 @@ flowchart LR
 
 *Figure 2: Text processing across input and output, which represents how the ZWJ is restored before encoding and how the output is kept intact while streaming.*
 
-**E) User interface.** The interface provides a question box, generation settings, a model variant selector, a load progress indicator and a limitations notice. A Sinhala font (Noto Sans Sinhala) is bundled locally, so that conjuncts render correctly without a network connection.
+**E) User interface.** The interface provides a question box, generation settings, a variant picker (the 4-bit model by default and the 8-bit model as an optional download), a load progress indicator and a limitations notice, and a Diagnostics tab with the runtime, memory, a benchmark and a session log. A Sinhala font (Noto Sans Sinhala) is bundled locally, so that conjuncts render correctly without a network connection.
 
-**F) Offline layer.** A service worker caches the application shell, and transformers.js stores model files in the browser's Cache Storage. The application also requests persistent storage through `navigator.storage.persist()`, which reduces the chance that the browser evicts the model under storage pressure. In other words, the offline reader depends on two caches: one for the page and one for the model.
+**F) Offline layer.** A service worker caches the application shell, and the inference worker streams the model files into the browser's Cache Storage, from which transformers.js loads them (S16). The application also requests persistent storage through `navigator.storage.persist()`, which reduces the chance that the browser evicts the model under storage pressure. In other words, the offline reader depends on two caches: one for the page and one for the model.
 
 ```mermaid
 sequenceDiagram
@@ -314,7 +314,7 @@ The fp32 export of a 1.74B model needs about 7 GB of disk for the raw export and
 
 #### 5.6 Phase 5: Quality evaluation before the UI (RQ1)
 
-For each variant, we compute perplexity on the held-out set with ONNX Runtime in Python, together with the greedy agreement rate against fp32 on the golden questions. Since tokenizers differ between models, bits per character are reported alongside perplexity. The proposal originally shipped the smallest variant whose perplexity stays within 2% of fp32. RQ1 showed that no 4-bit variant of this model can meet that margin, and that even the author's own 4-bit release (Q4_K_M) loses about 50% ([rq1-quantization.md](findings/rq1-quantization.md)). The quality gate therefore requires the shipped variant to be at least as good as the author's 4-bit release on the same FLORES+ sentences, together with a review of its answers by a native speaker. The shipped default is q4-v0-small (1.18 GB), which keeps the value projection of layer 0 in fp32 and stays within NFR5, while q8 is kept as an optional higher-quality variant if it proves fast enough on WebGPU (RQ2). Since the browser application is built only after this step, a variant that fails here never reaches the reader.
+For each variant, we compute perplexity on the held-out set with ONNX Runtime in Python, together with the greedy agreement rate against fp32 on the golden questions. Since tokenizers differ between models, bits per character are reported alongside perplexity. The proposal originally shipped the smallest variant whose perplexity stays within 2% of fp32. RQ1 showed that no 4-bit variant of this model can meet that margin, and that even the author's own 4-bit release (Q4_K_M) loses about 50% ([rq1-quantization.md](findings/rq1-quantization.md)). The quality gate therefore requires the shipped variant to be at least as good as the author's 4-bit release on the same FLORES+ sentences, together with a review of its answers by a native speaker. The shipped default is q4-v0-small (1.18 GB), which keeps the value projection of layer 0 in fp32 and stays within NFR5. q8 passed the same gate with a perplexity of 115.5 and is offered as an optional download, since it reached the same speed as q4 on WebGPU ([browser-runtime.md](findings/browser-runtime.md#12-the-8-bit-variant)). Since the browser application is built only after this step, a variant that fails here never reaches the reader.
 
 #### 5.7 Phase 6: Browser application
 
@@ -353,7 +353,7 @@ async function answer(question, opts, onText) {
 }
 ```
 
-The device is selected before loading: WebGPU when `navigator.gpu.requestAdapter()` returns a hardware adapter, and WASM otherwise. The streamer interface and its handling of incomplete characters should be checked against the pinned transformers.js version.
+The device is selected before loading: WebGPU when `navigator.gpu.requestAdapter()` returns a hardware adapter, and WASM otherwise. The implementation in `web/src/worker/` follows this core and adds what the browser work required: the model files are downloaded into Cache Storage before loading (S16), the weights are stored in separate data files (S14, S15), the variant can be chosen, and a shared stop flag ends generation between tokens.
 
 The application applies runtime optimizations that need no change to the model files:
 
@@ -376,17 +376,20 @@ sinhalalm-web/
 │   ├── sinhalallm.py         # pinned source, config translation, loaders
 │   ├── parity_check.py       # gate 1
 │   ├── export_onnx.py        # Optimum export, verified and finalized
-│   ├── quantize.py           # q8 / q4 variants
-│   ├── eval_quality.py       # gate 2 + RQ1 perplexity
+│   ├── quantize.py           # q8 / q4 variants and browser graph rewrites
+│   ├── eval_quality.py       # gate 2, RQ1 perplexity and quality gates
+│   ├── package_web.py        # versioned web package with manifest
 │   └── make_golden.py        # golden logits + tokenizer cases
 ├── golden/                   # fixtures shared by Python and JS tests
 ├── web/
-│   ├── src/text/zwj.js       # normalizeZwj
+│   ├── src/text/zwj.js       # normalizeZwj, restoreZwj
 │   ├── src/text/entities.js  # decodeEntities
-│   ├── src/worker/inference.worker.js
-│   ├── src/ui/
+│   ├── src/worker/           # inference worker, generation, variants
+│   ├── src/sw/               # service worker template
+│   ├── src/ui/               # Ask and Diagnostics tabs
 │   ├── public/models/<model>/<version>/
-│   └── tests/                # Vitest unit tests, Playwright E2E
+│   ├── tests/                # Vitest unit tests, gate 3, package parity
+│   └── e2e/                  # Playwright tests, gate 4, offline test
 └── Makefile                  # local CI pipeline
 ```
 
@@ -431,7 +434,7 @@ Gate 4 compares the same quantized file in two runtimes, rather than the fp32 mo
 
 #### 6.3 End-to-end tests
 
-End-to-end tests run with Playwright in Chromium using the WASM backend, since WebGPU exposes only a software adapter in headless Chromium. The suite covers the first load with a progress indicator, question answering with streaming, settings changes, and the offline scenario: after the first load, the test switches the browser context offline with `context.setOffline(true)`, reloads the page and confirms that generation still works. This test is the automated version of our offline reader.
+End-to-end tests run with Playwright in Chrome on the WASM backend, which uses the same CPU kernels as ONNX Runtime in Python and therefore suits gate 4. Headless Chrome offers hardware WebGPU only with Vulkan enabled (S13), so WebGPU is measured separately. The suite (`make e2e`) covers the first load with a progress indicator, gate 4, streaming and stopping an answer, the context limit, settings and the model after a reload, deleting the model, and the offline scenario: after the first load, the test switches the browser context offline with `context.setOffline(true)`, reloads the page and confirms that generation still works. This test is the automated version of our offline reader.
 
 #### 6.4 Cross-device benchmarks (RQ2)
 
@@ -443,9 +446,9 @@ WebGPU behavior varies by device and driver, so benchmarks run on physical devic
 - generation speed in tokens per second, together with Sinhala characters per second, since tokenizers differ;
 - peak memory.
 
-The protocol uses a fixed question, greedy decoding, 128 new tokens and the median of five runs. The application includes a benchmark page that runs this protocol and shows the results with a "copy results" button, so that community members can voluntarily contribute measurements from their own devices.
+The protocol uses a fixed question, greedy decoding, 128 new tokens and the median of five runs. The Diagnostics tab of the application provides a first version of this protocol: it asks the 13 sample questions with greedy decoding and up to 64 tokens, reports the median time to the first token and speed in a dialog, and keeps every run in a session log that can be exported as JSON, so that community members can voluntarily contribute measurements from their own devices. The RQ2 protocol extends it in Phase 6.
 
-Since the target devices are desktop and laptop computers, the benchmark matrix runs on a laptop with an Intel Core i7-11375H (8 threads), an NVIDIA GeForce RTX 3060 Laptop GPU, Intel Iris Xe graphics and 23 GB of memory: Chrome with WebGPU on the discrete GPU, Chrome with WebGPU on the integrated GPU, Chrome with multi-threaded WASM (8 threads), Chrome with single-threaded WASM, Firefox with WASM, and a low-end stand-in with 2 WASM threads and 4× CPU throttling. Community measurements from the benchmark page extend this matrix to other computers.
+Since the target devices are desktop and laptop computers, the benchmark matrix runs on a laptop with an Intel Core i7-11375H (8 threads), an NVIDIA GeForce RTX 3060 Laptop GPU, Intel Iris Xe graphics and 23 GB of memory: Chrome with WebGPU on the discrete GPU, Chrome with WebGPU on the integrated GPU, Chrome with multi-threaded WASM (8 threads), Chrome with single-threaded WASM, Firefox with WASM, and a low-end stand-in with 2 WASM threads and 4× CPU throttling. Community measurements from the Diagnostics tab extend this matrix to other computers.
 
 #### 6.5 Human evaluation (RQ3)
 

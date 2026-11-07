@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/phase4-wrapup — Documentation at the end of Phase 4
+
+#### Changed
+
+- The README describes the graph rewrites for the browser, both model variants, the separate weight files and the streamed model cache, marks Phase 4 as done and lists the new folders and the `make quality` and `make package` targets for both variants.
+- The proposal now describes the variant picker and the Diagnostics tab, the model cache filled by the worker, the result of the q8 quality gate, the end-to-end suite as built, and the Diagnostics benchmark as the first version of the RQ2 protocol.
+
+#### Decisions
+
+- Four questions from the acceptance targets are still open and are listed in [FINDINGS.md](FINDINGS.md): the WebAssembly time-to-first-token target, which memory figure counts for the 2 GB target, words that may need a visible virama before ය or ර, and how to offer q8 on WebAssembly.
+
 ### fix/diagnostics-ui — Review of the Diagnostics tab and variant choice
 
 #### Fixed
