@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### fix/portable-embedding — 4-bit embedding for the browser runtime
+
+#### Fixed
+
+- The packaged model could not be loaded in the browser. The asyncify build of ONNX Runtime Web has no implementation of `GatherBlockQuantized`, the operator the 4-bit quantizer uses for the embedding lookup. `convert/quantize.py` now replaces it with standard ONNX operators after quantization and records this as `portable_embedding` in the variant report.
+
+#### Added
+
+- A second package check, which creates a session in the asyncify WebAssembly build of ONNX Runtime Web and requires the first greedy token of each golden question.
+
+#### Results
+
+- The replacement gives a maximum logit difference of 0.0 and the same greedy answers on all ten golden questions. The quality gate passes unchanged (perplexity 158.014 against 194.965), and q4-v0-small stays at 1.184 GB.
+
+#### Attempts
+
+- The earlier package parity check passed, since it ran the model in the Node.js build of ONNX Runtime, which implements the operator. The failure appeared only in the first browser test of the inference worker, which is why the check now uses the browser build as well.
+
 ### feat/theme-toggle — Theme switch and sample questions
 
 #### Added
