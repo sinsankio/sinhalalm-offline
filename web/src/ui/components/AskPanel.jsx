@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { SAMPLE_QUESTIONS, VISIBLE_SAMPLES } from "../content.js";
 
-export default function AskPanel({ question, onChange, ready, hint }) {
+export default function AskPanel({ question, onChange, ready, answering, hint, onAsk, onStop }) {
   const [showAll, setShowAll] = useState(false);
-  const submit = (event) => event.preventDefault();
+  const canAsk = ready && !answering && question.trim().length > 0;
+  const submit = (event) => {
+    event.preventDefault();
+    if (canAsk) onAsk(question);
+  };
+  const submitOnShortcut = (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) submit(event);
+  };
   const samples = showAll ? SAMPLE_QUESTIONS : SAMPLE_QUESTIONS.slice(0, VISIBLE_SAMPLES);
 
   return (
@@ -19,6 +26,7 @@ export default function AskPanel({ question, onChange, ready, hint }) {
         placeholder="ප්‍රශ්නය මෙහි ලියන්න…"
         value={question}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={submitOnShortcut}
       />
       <div className="samples" aria-label="Sample questions">
         {samples.map((sample) => (
@@ -39,10 +47,16 @@ export default function AskPanel({ question, onChange, ready, hint }) {
         </button>
       </div>
       <div className="actions">
-        <button type="submit" className="primary" disabled={!ready || !question.trim()}>
-          Ask
-        </button>
-        {!ready && <span className="hint">{hint}</span>}
+        {answering ? (
+          <button type="button" className="secondary" onClick={onStop}>
+            Stop
+          </button>
+        ) : (
+          <button type="submit" className="primary" disabled={!canAsk}>
+            Ask
+          </button>
+        )}
+        <span className="hint">{ready ? "Ctrl + Enter to ask" : hint}</span>
       </div>
     </form>
   );

@@ -82,6 +82,15 @@ make preview # production build on http://localhost:4173
 
 On the first visit, the application asks before it downloads the model (1.19 GB). The model is then kept in the browser's Cache Storage and loaded from there on later visits. The storage panel shows how much space the site uses and can delete the downloaded model, for example when the disk is nearly full.
 
+The application uses WebGPU when the browser offers it on a real GPU, and the processor (WebAssembly) otherwise, which is much slower. Chrome on Linux does not enable WebGPU by default. To use the GPU there, quit Chrome completely and start it with a separate profile:
+
+```bash
+google-chrome --user-data-dir=$HOME/.sinhalalm-chrome \
+  --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan
+```
+
+These flags enable WebGPU features that Chrome has not yet approved for Linux, so use this profile only for this application.
+
 ### Model store
 
 Downloaded checkpoints, converted models and generated logits are kept in a model store outside the repository, since they are too large for the internal disk. The store defaults to `build/`, and a local `local.mk` file (not committed) can point it to another location, such as an external drive:

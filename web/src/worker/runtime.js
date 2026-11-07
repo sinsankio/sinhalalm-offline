@@ -10,6 +10,21 @@ export function isSoftwareAdapter(info = {}) {
   return SOFTWARE_ARCHITECTURES.some((name) => text.includes(name));
 }
 
+export function gpuSupport(info) {
+  if (!info) return "none";
+  return isSoftwareAdapter(info) ? "software" : "hardware";
+}
+
+export function webgpuUnavailableMessage(support) {
+  return support === "software"
+    ? "This browser offers WebGPU only in software, which would be slower than WASM."
+    : "This browser does not offer WebGPU.";
+}
+
+export function isLinuxDesktop(platform = "", userAgent = "") {
+  return /linux/i.test(platform) && !/android|cros/i.test(userAgent);
+}
+
 export function wasmThreads(hardwareConcurrency, crossOriginIsolated) {
   if (!crossOriginIsolated) return 1;
   const cores = Number.isFinite(hardwareConcurrency) ? hardwareConcurrency : 1;

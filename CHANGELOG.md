@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/qa-mode — Questions and streamed answers
+
+#### Added
+
+- The worker builds the ChatML prompt from the question, normalizes the ZWJ when the setting is on, and caps prompt and answer together at 1,024 tokens. A question that leaves fewer than 16 tokens for the answer is rejected with a message.
+- Answers are streamed as they are generated, with HTML entities resolved, and the interface applies the streamed text at most once per frame. A temperature of 0 selects greedy decoding.
+- A Stop button, Ctrl+Enter to ask, and a line under each answer with the number of tokens, the speed and the time to the first token. Backend switching and model deletion are locked while an answer is generated.
+- `web/src/worker/generation.js` and `web/tests/generation.test.js` for the prompt, the generation options, the stop reason and the statistics.
+- When the model runs on WASM because WebGPU is missing or only available in software, the model panel says so. On Linux, it also shows how to start Chrome with WebGPU on the GPU (S13). Selecting WebGPU explicitly now gives the same reason instead of a generic message.
+
+#### Results
+
+- In headless Chrome on an RTX 3060 Laptop GPU, the greedy answers to the first three golden questions matched the Python answers exactly. After the WebGPU fix (fix/webgpu-graph), a 64-token answer was generated at 27.6 tokens per second, with the first token after 0.1 s.
+- Without a GPU, the same answers matched as well, but at 0.6 tokens per second (S12).
+
+#### Attempts
+
+- The first Stop button sent a message to the worker, which arrived only after the answer was complete, since the WebAssembly backend never yields to the worker's message queue while generating. The page and the worker now share a stop flag in shared memory, with the message kept as a fallback for pages that are not cross-origin isolated.
+
 ### fix/webgpu-graph — Operators that stalled WebGPU
 
 #### Fixed

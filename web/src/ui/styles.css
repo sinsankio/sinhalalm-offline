@@ -189,6 +189,11 @@ body {
   border-color: var(--accent);
 }
 
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .chip-more {
   background: transparent;
   border-style: dashed;
@@ -231,6 +236,23 @@ body {
   font-size: 1.2rem;
   line-height: 1.8;
   white-space: pre-wrap;
+}
+
+.answer-question {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.answer-stats {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.answer-error {
+  margin: 0;
+  color: var(--error);
 }
 
 .placeholder {
@@ -386,6 +408,35 @@ a {
 
 .status-action {
   margin-top: 12px;
+}
+
+.gpu-hint {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--notice-border);
+  border-radius: 10px;
+  background: var(--notice);
+  font-size: 0.9rem;
+}
+
+.gpu-hint p {
+  margin: 0 0 6px;
+}
+
+.gpu-hint summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.gpu-hint code {
+  display: block;
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 
 .status-detail {

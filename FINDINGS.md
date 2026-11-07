@@ -40,6 +40,7 @@ This document summarizes the research and development findings of the project in
 - **CI now checks the browser build.** `make check-package` creates a session in the asyncify WebAssembly build and checks the first greedy token of each golden question.
 - **S11: two operators stalled WebGPU at every token.** `IsNaN` after each softmax and the bitwise unpack of the embedding ran on the CPU, so the GPU waited for a copy 25 times per token. Exact rewrites raised the speed of a plain session on an RTX 3060 Laptop GPU from 4.1 to about 18 tokens per second.
 - **S12: WebAssembly has no fast 4-bit kernel.** Without a GPU, 94% of the time goes to the 4-bit matrix product, and the model generates 0.6 tokens per second with seven threads, against a target of 5.
+- **S13: Chrome on Linux has no hardware WebGPU by default.** Without flags, Chrome 154 offered no adapter or only the SwiftShader software adapter, so the application ran on WebAssembly; with Vulkan enabled, it found the NVIDIA GPU.
 
 ### RQ1: quantization quality
 

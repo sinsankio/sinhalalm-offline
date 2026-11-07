@@ -1,4 +1,5 @@
 import { MODEL } from "../content.js";
+import GpuHint from "./GpuHint.jsx";
 
 const BACKENDS = [
   { value: "auto", label: "Auto" },
@@ -32,7 +33,7 @@ function describe(model) {
   return "The model is not loaded.";
 }
 
-export default function StatusBar({ model, onLoad }) {
+export default function StatusBar({ model, locked, onLoad }) {
   const { state, runtime, progress, error } = model;
   const busy = state === "checking" || state === "loading" || state === "warming";
   const percent =
@@ -75,6 +76,9 @@ export default function StatusBar({ model, onLoad }) {
           <dd>{runtime.crossOriginIsolated ? "yes" : "no"}</dd>
         </dl>
       )}
+      {state === "ready" && runtime.device === "wasm" && runtime.gpu && (
+        <GpuHint gpu={runtime.gpu} />
+      )}
       {(state === "ready" || state === "error") && (
         <div className="backend-switch" role="group" aria-label="Backend">
           <span className="hint">Run on</span>
@@ -84,6 +88,7 @@ export default function StatusBar({ model, onLoad }) {
               type="button"
               className="chip"
               aria-pressed={state === "ready" && value === runtime?.device}
+              disabled={locked}
               onClick={() => onLoad(value)}
             >
               {label}
