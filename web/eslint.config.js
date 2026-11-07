@@ -4,7 +4,16 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 
 export default [
-  { ignores: ["dist/", "dev-dist/", "public/models/", "playwright-report/", "test-results/"] },
+  {
+    ignores: [
+      "dist/",
+      "dev-dist/",
+      "public/models/",
+      "public/ort/",
+      "playwright-report/",
+      "test-results/",
+    ],
+  },
   js.configs.recommended,
   {
     files: ["src/**/*.{js,jsx}"],
@@ -19,7 +28,7 @@ export default [
     },
   },
   {
-    files: ["tests/**/*.js", "*.config.js"],
+    files: ["tests/**/*.js", "scripts/**/*.mjs", "*.config.js"],
     languageOptions: { globals: { ...globals.node } },
   },
 ];
