@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/phase4-plan — Browser application plan
+
+#### Decisions
+
+- The frontend is built with Vite and React. Next.js was considered, but a static Hugging Face Space cannot use its server-side features, so it would add weight and build complexity without a benefit for this application.
+- Mojo is not used. Inference runs in the browser through ONNX Runtime Web (WebAssembly and WebGPU), and Python only runs the build-time pipeline, so neither language is on the inference path.
+- The browser application applies runtime optimizations that need no change to the model files: WebGPU first with software adapters rejected, the key-value cache kept on the GPU, a warm-up run after loading, early loading with a persistent worker, WASM thread and session tuning, and streaming with frame-batched updates.
+- Model-level optimizations (fp16 activations, logits for the last position only, fused attention) are left out of this version, since each would require the parity and quality gates to be passed again.
+
+#### Changed
+
+- Section 5.7 of the proposal now describes the Vite and React frontend and the runtime optimizations.
+
 ### feat/quality-gate — Shipped variant and quality gate
 
 #### Decisions
