@@ -1,17 +1,43 @@
-export default function AnswerPanel({ answer, streaming }) {
+const REASONS = {
+  length: "Stopped at the maximum answer length.",
+  user: "Stopped.",
+};
+
+function Stats({ stats }) {
+  const parts = [`${stats.newTokens} tokens`];
+  if (stats.tokensPerSecond != null) parts.push(`${stats.tokensPerSecond.toFixed(1)} tokens/s`);
+  if (stats.firstTokenMs != null)
+    parts.push(`first token after ${(stats.firstTokenMs / 1000).toFixed(1)} s`);
+  return <p className="answer-stats">{parts.join(" · ")}</p>;
+}
+
+export default function AnswerPanel({ answer }) {
+  const { question, text, streaming, reason, stats, error } = answer;
+  const shown = text.trimStart();
+
   return (
-    <section className="panel answer" aria-live="polite">
+    <section className="panel answer" aria-live="polite" aria-busy={streaming}>
       <h2 className="panel-label">Answer</h2>
-      {answer ? (
+      {question && (
+        <p className="answer-question" lang="si">
+          {question}
+        </p>
+      )}
+      {shown || streaming ? (
         <p className="answer-text" lang="si">
-          {answer}
+          {shown}
           {streaming && <span className="cursor" aria-hidden="true" />}
         </p>
       ) : (
-        <p className="placeholder">
-          The answer will appear here, word by word, as it is generated.
-        </p>
+        !error && (
+          <p className="placeholder">
+            The answer will appear here, word by word, as it is generated.
+          </p>
+        )
       )}
+      {error && <p className="answer-error">{error}</p>}
+      {REASONS[reason] && <p className="hint">{REASONS[reason]}</p>}
+      {stats && <Stats stats={stats} />}
     </section>
   );
 }

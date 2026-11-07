@@ -2,9 +2,9 @@ import { useState } from "react";
 
 const gigabytes = (bytes) => `${(bytes / 1e9).toFixed(2)} GB`;
 
-export default function StorageControl({ storage, model, onRemove }) {
+export default function StorageControl({ storage, model, locked, onRemove }) {
   const [confirming, setConfirming] = useState(false);
-  const busy = ["checking", "loading", "warming", "removing"].includes(model.state);
+  const busy = locked || ["checking", "loading", "warming", "removing"].includes(model.state);
   const hasModel = model.state === "ready" || model.state === "error";
 
   return (

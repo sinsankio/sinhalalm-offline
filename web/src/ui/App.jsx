@@ -13,7 +13,8 @@ import useModel from "./useModel.js";
 export default function App() {
   const [question, setQuestion] = useState("");
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const { model, storage, load, remove } = useModel();
+  const { model, storage, answer, load, remove, ask, stop } = useModel();
+  const ready = model.state === "ready";
 
   return (
     <div className="app">
@@ -23,19 +24,23 @@ export default function App() {
           <AskPanel
             question={question}
             onChange={setQuestion}
-            ready={false}
-            hint={
-              model.state === "ready"
-                ? "Answering is connected in the next step"
-                : "Available once the model is loaded"
-            }
+            ready={ready}
+            answering={answer.streaming}
+            hint="Available once the model is loaded"
+            onAsk={(text) => ask(text, settings)}
+            onStop={stop}
           />
-          <AnswerPanel answer="" streaming={false} />
+          <AnswerPanel answer={answer} />
           <Notice />
         </section>
         <aside className="column column-side">
-          <StatusBar model={model} onLoad={load} />
-          <StorageControl storage={storage} model={model} onRemove={remove} />
+          <StatusBar model={model} locked={answer.streaming} onLoad={load} />
+          <StorageControl
+            storage={storage}
+            model={model}
+            locked={answer.streaming}
+            onRemove={remove}
+          />
           <SettingsPanel settings={settings} onChange={setSettings} />
           <Credits />
         </aside>

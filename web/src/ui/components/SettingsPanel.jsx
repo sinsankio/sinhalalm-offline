@@ -35,7 +35,9 @@ export default function SettingsPanel({ settings, onChange }) {
         />
         <span>Normalize the zero-width joiner in questions</span>
       </label>
-      <p className="hint">Settings apply once the model is connected.</p>
+      <p className="hint">
+        Settings apply to the next question. A temperature of 0 always picks the most likely word.
+      </p>
     </section>
   );
 }

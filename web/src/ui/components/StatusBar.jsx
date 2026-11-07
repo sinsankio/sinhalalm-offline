@@ -32,7 +32,7 @@ function describe(model) {
   return "The model is not loaded.";
 }
 
-export default function StatusBar({ model, onLoad }) {
+export default function StatusBar({ model, locked, onLoad }) {
   const { state, runtime, progress, error } = model;
   const busy = state === "checking" || state === "loading" || state === "warming";
   const percent =
@@ -84,6 +84,7 @@ export default function StatusBar({ model, onLoad }) {
               type="button"
               className="chip"
               aria-pressed={state === "ready" && value === runtime?.device}
+              disabled={locked}
               onClick={() => onLoad(value)}
             >
               {label}

@@ -189,6 +189,11 @@ body {
   border-color: var(--accent);
 }
 
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .chip-more {
   background: transparent;
   border-style: dashed;
@@ -231,6 +236,23 @@ body {
   font-size: 1.2rem;
   line-height: 1.8;
   white-space: pre-wrap;
+}
+
+.answer-question {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.answer-stats {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.answer-error {
+  margin: 0;
+  color: var(--error);
 }
 
 .placeholder {
