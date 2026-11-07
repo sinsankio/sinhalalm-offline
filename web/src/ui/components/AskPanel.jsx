@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SAMPLE_QUESTIONS, VISIBLE_SAMPLES } from "../content.js";
 
-export default function AskPanel({ question, onChange, ready }) {
+export default function AskPanel({ question, onChange, ready, hint }) {
   const [showAll, setShowAll] = useState(false);
   const submit = (event) => event.preventDefault();
   const samples = showAll ? SAMPLE_QUESTIONS : SAMPLE_QUESTIONS.slice(0, VISIBLE_SAMPLES);
@@ -42,7 +42,7 @@ export default function AskPanel({ question, onChange, ready }) {
         <button type="submit" className="primary" disabled={!ready || !question.trim()}>
           Ask
         </button>
-        {!ready && <span className="hint">Available once the model is loaded</span>}
+        {!ready && <span className="hint">{hint}</span>}
       </div>
     </form>
   );
