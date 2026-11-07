@@ -1,4 +1,5 @@
 import { MODEL } from "../content.js";
+import useOnline from "../useOnline.js";
 import GpuHint from "./GpuHint.jsx";
 
 const BACKENDS = [
@@ -35,6 +36,7 @@ function describe(model) {
 
 export default function StatusBar({ model, locked, onLoad }) {
   const { state, runtime, progress, error } = model;
+  const online = useOnline();
   const busy = state === "checking" || state === "loading" || state === "warming";
   const percent =
     state === "loading" && !model.fromCache && progress?.progress != null
@@ -52,9 +54,22 @@ export default function StatusBar({ model, locked, onLoad }) {
       </p>
       {percent != null && <progress className="progress" max={1} value={percent} />}
       {state === "download-required" && (
-        <button type="button" className="primary status-action" onClick={() => onLoad("auto")}>
-          Download model ({MODEL.downloadGb} GB)
-        </button>
+        <>
+          <button
+            type="button"
+            className="primary status-action"
+            disabled={!online}
+            onClick={() => onLoad("auto")}
+          >
+            Download model ({MODEL.downloadGb} GB)
+          </button>
+          {!online && (
+            <p className="status-detail">
+              You are offline. Connect once to download the model; after that, the application works
+              without a connection.
+            </p>
+          )}
+        </>
       )}
       {state === "error" && (
         <>

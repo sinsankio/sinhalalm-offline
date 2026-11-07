@@ -17,10 +17,7 @@ const WARMUP_QUESTION = "ආයුබෝවන්";
 env.allowRemoteModels = false;
 env.allowLocalModels = true;
 env.localModelPath = "/models/";
-env.backends.onnx.wasm.wasmPaths = {
-  mjs: "/ort/ort-wasm-simd-threaded.asyncify.mjs",
-  wasm: "/ort/ort-wasm-simd-threaded.asyncify.wasm",
-};
+env.backends.onnx.wasm.wasmPaths = undefined;
 
 let tokenizer = null;
 let model = null;

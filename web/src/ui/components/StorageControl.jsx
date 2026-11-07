@@ -15,6 +15,13 @@ export default function StorageControl({ storage, model, locked, onRemove }) {
           ? `This site uses ${gigabytes(storage.usage)} of the ${gigabytes(storage.quota)} the browser allows.`
           : "The browser does not report storage usage."}
       </p>
+      {storage && hasModel && (
+        <p className="hint">
+          {storage.persisted
+            ? "The browser keeps the model until you delete it."
+            : "The browser may delete the model when the disk runs low on space."}
+        </p>
+      )}
       {model.state === "removing" && <p className="hint">Deleting the downloaded model…</p>}
       {hasModel && !confirming && (
         <button

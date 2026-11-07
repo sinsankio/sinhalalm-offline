@@ -11,6 +11,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 #### Decisions
 
 - Sineth Sankalpa completed the native-speaker review of the q4-v0-small answers, the second part of the quality gate. Together with the perplexity comparison against Q4_K_M, q4-v0-small has passed the full quality gate.
+### feat/offline-pwa — Offline mode
+
+#### Added
+
+- A service worker, generated at build time, which stores the page, its scripts, styles and fonts, and the ONNX Runtime WebAssembly file in the browser on the first visit and serves them from there afterwards. Each build has its own cache, and older application caches are removed when a new version takes over. The model stays in the cache that transformers.js manages.
+- The service worker adds the cross-origin isolation headers to the responses it serves, so that the WebAssembly backend keeps its threads on hosts that cannot set these headers. If a page is not isolated when the service worker first takes control, it reloads once.
+- A web app manifest and an icon, so the application can be installed. The icon also replaces the missing favicon.
+- After the model is loaded, the application asks the browser to keep its storage until the reader deletes it (`navigator.storage.persist()`), and the storage panel says whether the browser agreed.
+- Without a connection and without a downloaded model, the download button is disabled and the model panel explains that one online visit is needed.
+- `make preview` also serves the linked model, so that offline mode can be tested on the production build.
+
+#### Results
+
+- On the production build in headless Chrome, the model was downloaded once, the browser was switched offline and the page was reloaded. The page came from the service worker, the model loaded from the device in 3.2 s, the page stayed cross-origin isolated, and the greedy answer to the first golden question matched the Python answer exactly. With the model deleted while offline, the download button was disabled with the offline message.
+
+#### Revised
+
+- The ONNX Runtime WebAssembly files were copied into `web/public/ort/` before each build, while Vite already emitted the same 27 MB WebAssembly file from the ONNX Runtime package, so the build contained it twice. The worker now leaves the file location to ONNX Runtime, which loads the file Vite emits, and the copy script is removed. This also removes the warning that transformers.js could not cache the copied file.
+
+#### Attempts
+
+- The first run of the offline test was stopped by its 15-minute time limit without any output, since the output was piped through another command that held it back. The rerun, which wrote directly to a file, finished in 36 s.
 
 ### feat/settings — Saved generation settings
 
