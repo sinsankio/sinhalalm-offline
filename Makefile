@@ -190,7 +190,6 @@ e2e: $(E2E_OK) ## Browser tests: gate 4, offline mode and the main flows (downlo
 
 ci: lint convert onnx quantize quality check-package test-web e2e ## Run the local CI pipeline
 
-deploy: ci ## Deploy the tagged release to the Hugging Face Space (needs a write token)
+deploy: ci ## Deploy the tagged release: models to the Hub, the application to the Space (needs a write token)
 	@git describe --exact-match --tags HEAD >/dev/null 2>&1 || { echo "deploy needs a version tag on HEAD"; exit 1; }
-	cd $(WEB) && $(NPM) run build
 	$(PY) deploy/deploy_space.py
