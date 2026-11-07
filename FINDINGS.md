@@ -48,7 +48,7 @@ This document summarizes the research and development findings of the project in
 - **Every plain 4-bit variant fails by far.** Perplexity rises by +164% to +248% across head and embedding precision, asymmetric quantization, block size 16 and HQQ.
 - **The cause is not the pipeline.** The 4-bit kernel's compute precision and the dequantized weight error both behave as expected, and the author's own mixed 4/6-bit GGUF release loses +51.5% on the same sentences.
 - **One matrix causes most of the loss.** Keeping the 16 MB value projection of layer 0 in fp32 reduces the loss to +33% (q4-v0, 1.54 GB), or +40% with a 4-bit head and embedding (q4-v0-small, 1.18 GB, within the 1.2 GB target).
-- **q4-v0-small ships by default.** The 2% gate was replaced by "no worse than the author's Q4_K_M release on the same sentences, plus a native-speaker review of the answers". On all 1,012 sentences, q4-v0-small passes with a perplexity of 158.0 against 195.0 for Q4_K_M. q8 stays an option if it proves fast enough on WebGPU.
+- **q4-v0-small ships by default.** The 2% gate was replaced by "no worse than the author's Q4_K_M release on the same sentences, plus a native-speaker review of the answers". On all 1,012 sentences, q4-v0-small passes with a perplexity of 158.0 against 195.0 for Q4_K_M. The native-speaker review of its answers is done, so both parts of the gate are passed. q8 stays an option if it proves fast enough on WebGPU.
 
 ### Quantization
 

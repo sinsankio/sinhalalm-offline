@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/native-review — Quality gate review
+
+#### Decisions
+
+- Sineth Sankalpa completed the native-speaker review of the q4-v0-small answers, the second part of the quality gate. Together with the perplexity comparison against Q4_K_M, q4-v0-small has passed the full quality gate.
 ### feat/offline-pwa — Offline mode
 
 #### Added
