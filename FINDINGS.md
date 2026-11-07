@@ -8,6 +8,7 @@ This document summarizes the research and development findings of the project in
 |---|---|---|
 | [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
 | [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
+| [browser-runtime.md](docs/findings/browser-runtime.md) | Browser runtime compatibility of the q4 model | The browser build of ONNX Runtime lacks the 4-bit embedding operator, and a replacement with standard operators loads in the browser with identical logits. |
 | [rq1-quantization.md](docs/findings/rq1-quantization.md) | RQ1: quantization quality | fp16 and q8 stay within 2% of fp32, while every 4-bit variant fails; keeping the value projection of layer 0 in fp32 reduces the 4-bit loss from +164% to +33%, better than the author's own 4-bit release. |
 | [quantization.md](docs/findings/quantization.md) | fp16, q8 and q4 variants | Only q4 with an untied, quantized head and a quantized embedding fits the 1.2 GB target (1.17 GB), but a first check suggests it costs quality, while q8 is accurate but very slow on the CPU. |
 | [onnx-export.md](docs/findings/onnx-export.md) | ONNX export and parity gate 2 | The export fits the machine only as a capped trace plus a separate verify-and-finalize step, and the fp32 ONNX model reproduces every greedy answer with a relative logit difference of at most 3.46e-5. |
@@ -31,6 +32,12 @@ This document summarizes the research and development findings of the project in
 - **S2 and S3: the ZWJ must be added to the input.** The tokenizer has no normalizer, ශ්රී ලංකාව ප්රධාන without the ZWJ becomes 6 fragments instead of 3 tokens, and the vocabulary contains the ZWJ only in `්‍ර` (611 tokens) and `්‍ය` (150 tokens).
 - **S4: the browser tokenizer matches the Python one.** transformers.js 4.3.2 produced identical token IDs on 210 Sinhala texts and edge cases, so no custom tokenizer port is needed.
 - **S5–S8: context, stop tokens, size and accuracy.** The application caps the context at 1,024 tokens, stops at both `<|im_end|>` and `<|endoftext|>`, ships only quantized variants of the 6.96 GB fp32 model, and labels answers as unverified.
+
+### Browser runtime
+
+- **S10: the 4-bit embedding operator is missing in the browser.** `GatherBlockQuantized` works in ONNX Runtime for Python and Node.js, so every earlier gate passed, while the asyncify build that transformers.js loads in the browser cannot create a session with it.
+- **Standard operators give the same model.** The pipeline replaces it with `Gather`, `BitwiseAnd`, `BitShift` and a dequantization with the same scales. The logits are identical, all ten greedy answers match, the quality gate is unchanged at a perplexity of 158.014 and the size stays 1.184 GB.
+- **CI now checks the browser build.** `make check-package` creates a session in the asyncify WebAssembly build and checks the first greedy token of each golden question.
 
 ### RQ1: quantization quality
 
