@@ -56,7 +56,7 @@ Both are replaced with operators that compute the same values on the GPU: `IsNaN
 | `IsNaN` replaced | 58 ms | 17.2 |
 | `IsNaN` and the embedding unpack replaced | 53 to 57 ms | 17.5 to 18.9 |
 
-These are measurements of a plain ONNX Runtime session in headless Chrome over 50 steps, with run-to-run variation of about 10%. The rewritten model gives a maximum logit difference of 0.0 against the previous one, the same greedy answers, and the same perplexity of 158.014. The packaging step now refuses a model that contains `IsNaN`, `BitwiseAnd`, `BitShift` or `GatherBlockQuantized`.
+These are measurements of a plain ONNX Runtime session in headless Chrome over 50 steps, with run-to-run variation of about 10%. In the application, where transformers.js also keeps the key-value cache on the GPU, a 64-token answer was generated at 27.6 tokens per second, with the first token after 0.1 s, which meets both WebGPU targets. The rewritten model gives a maximum logit difference of 0.0 against the previous one, the same greedy answers, and the same perplexity of 158.014. The packaging step now refuses a model that contains `IsNaN`, `BitwiseAnd`, `BitShift` or `GatherBlockQuantized`.
 
 ### 6. WebAssembly: no fast kernel for 4-bit matrix products
 
