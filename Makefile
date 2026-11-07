@@ -30,6 +30,11 @@ QUANTIZED := $(foreach variant,q4-v0 q4-v0-small q8,$(SINHALALM_STORE)/onnx/$(va
 DEFAULT_VARIANT := q4-v0-small
 RQ1_DIR := $(SINHALALM_STORE)/rq1
 QUALITY_GATE := $(RQ1_DIR)/quality-gate.json
+WEB_MODEL := sinhalallm-1.7b
+WEB_PACKAGE := $(SINHALALM_STORE)/web/$(WEB_MODEL)/v2.1/manifest.json
+EXPECTED_GREEDY := $(SINHALALM_STORE)/web/expected-greedy.json
+PACKAGE_PARITY := $(SINHALALM_STORE)/web/package-parity.ok
+MODEL_LINK := $(WEB)/public/models/$(WEB_MODEL)
 
 COMMON_INPUTS := convert/sinhalallm.py uv.lock
 GOLDEN_INPUTS := $(COMMON_INPUTS) convert/make_golden.py golden/prompts.json
@@ -39,6 +44,8 @@ EXPORT_INPUTS := $(COMMON_INPUTS) convert/parity_check.py convert/export_onnx.py
 GATE2_INPUTS := $(COMMON_INPUTS) convert/eval_quality.py golden/reference.json
 QUANTIZE_INPUTS := $(COMMON_INPUTS) convert/quantize.py
 RQ1_INPUTS := $(COMMON_INPUTS) convert/eval_quality.py
+PACKAGE_INPUTS := $(COMMON_INPUTS) convert/eval_quality.py convert/package_web.py
+PARITY_INPUTS := web/tests/package-parity.test.js web/package-lock.json golden/reference.json
 
 define content_stamp
 $(STAMPS)/$(1).sha256: FORCE
@@ -54,8 +61,10 @@ $(eval $(call content_stamp,export,$(EXPORT_INPUTS)))
 $(eval $(call content_stamp,gate2,$(GATE2_INPUTS)))
 $(eval $(call content_stamp,quantize,$(QUANTIZE_INPUTS)))
 $(eval $(call content_stamp,rq1,$(RQ1_INPUTS)))
+$(eval $(call content_stamp,package,$(PACKAGE_INPUTS)))
+$(eval $(call content_stamp,parity,$(PARITY_INPUTS)))
 
-.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality rq1 verify test-web ci
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -113,6 +122,13 @@ $(RQ1_DIR)/gguf-q4_k_m.json: $(STAMPS)/rq1.sha256
 $(QUALITY_GATE): $(RQ1_DIR)/$(DEFAULT_VARIANT).json $(RQ1_DIR)/gguf-q4_k_m.json
 	$(PY) convert/eval_quality.py quality-gate --variant $(DEFAULT_VARIANT)
 
+$(WEB_PACKAGE): $(QUALITY_GATE) $(STAMPS)/package.sha256
+	$(PY) convert/package_web.py
+
+$(PACKAGE_PARITY): $(WEB_PACKAGE) $(STAMPS)/parity.sha256 | link-models
+	cd $(WEB) && SINHALALM_EXPECTED_GREEDY=$(EXPECTED_GREEDY) $(NPM) exec -- vitest run tests/package-parity.test.js
+	touch $@
+
 golden: ## Regenerate golden outputs and tokenizer cases with the reference toolchain
 	$(REF_PY) convert/make_golden.py reference
 	$(REF_PY) convert/make_golden.py tokenizer
@@ -129,6 +145,14 @@ quantize: $(ONNX_FP16) $(QUANTIZED) ## Build the fp16, q8 and q4 candidate varia
 
 quality: $(QUALITY_GATE) ## Quality gate: default variant against the author's Q4_K_M release
 
+package: $(WEB_PACKAGE) ## Package the default variant for the web application
+
+link-models: ## Link the packaged model into web/public/models
+	@test -d $(SINHALALM_STORE)/web/$(WEB_MODEL) || { echo "model package missing; run make package"; exit 1; }
+	@ln -sfn $(SINHALALM_STORE)/web/$(WEB_MODEL) $(MODEL_LINK)
+
+check-package: $(PACKAGE_PARITY) ## Verify the packaged model in transformers.js against Python
+
 rq1: quantize ## RQ1: perplexity and answer agreement of every candidate variant (slow)
 	$(CAPPED_PY) convert/eval_quality.py rq1 --variant fp32
 	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q4-v0
@@ -142,4 +166,4 @@ verify: check-golden ## Rerun golden generation and gate 1 from scratch
 test-web: $(TOKENIZER_CORPUS) ## Run web unit tests, including gate 3
 	cd $(WEB) && $(NPM) test
 
-ci: lint convert onnx quantize quality test-web ## Run the local CI pipeline
+ci: lint convert onnx quantize quality check-package test-web ## Run the local CI pipeline
