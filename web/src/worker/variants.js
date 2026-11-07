@@ -1,5 +1,6 @@
 export const MODEL_ID = "sinhalallm-1.7b/v2.1";
-export const DEFAULT_VARIANT = "q4";
+export const DEFAULT_VARIANT = "q8";
+export const FALLBACK_VARIANT = "q4";
 export const COMMON_FILES = [
   "config.json",
   "generation_config.json",
@@ -41,4 +42,11 @@ export function combinedProgress(files) {
     ? items.reduce((sum, item) => sum + item.total, 0)
     : null;
   return { loaded, total, progress: total ? loaded / total : null };
+}
+
+export function initialVariant({ saved, cached = {}, gpu }) {
+  if (VARIANTS[saved]) return saved;
+  if (gpu !== "hardware") return FALLBACK_VARIANT;
+  if (!cached[DEFAULT_VARIANT] && cached[FALLBACK_VARIANT]) return FALLBACK_VARIANT;
+  return DEFAULT_VARIANT;
 }

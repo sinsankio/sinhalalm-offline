@@ -126,3 +126,5 @@ The medians come from the benchmark in the Diagnostics tab (five sample question
 All values come from headless Chrome on the RTX 3060 Laptop GPU and its 8-core CPU. Page memory is the browser's own measurement of the page and its workers, without GPU memory; renderer is the resident memory of the tab's process.
 
 After these measurements, the WebAssembly target for the first token was dropped, as the speed target before it (S12), and the memory target counts the page memory measured by the browser, with the renderer process recorded alongside. The application warns when the 8-bit model runs on WebAssembly.
+
+At the end of Phase 4, Sineth made q8 the default on hardware WebGPU, with q4 as the fallback without hardware WebGPU or when q8 cannot be downloaded, stored or loaded. The default download is therefore 2.48 GB, and the 1.2 GB target applies to the q4 fallback.

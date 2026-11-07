@@ -12,6 +12,7 @@ import { createStopSignal } from "./stop-signal.js";
 import {
   COMMON_FILES,
   DEFAULT_VARIANT,
+  FALLBACK_VARIANT,
   MODEL_ID,
   VARIANTS,
   combinedProgress,
@@ -138,7 +139,19 @@ async function warmUp() {
   await model.generate({ ...inputs, max_new_tokens: 2, do_sample: false });
 }
 
-async function load({ preferred = "auto", dtype = DEFAULT_VARIANT } = {}) {
+async function load(options = {}) {
+  const dtype = options.dtype ?? DEFAULT_VARIANT;
+  try {
+    await loadVariant({ ...options, dtype });
+  } catch (error) {
+    if (dtype !== DEFAULT_VARIANT) throw error;
+    const reason = error?.message ?? String(error);
+    post("fallback", { from: dtype, to: FALLBACK_VARIANT, reason });
+    await loadVariant({ ...options, dtype: FALLBACK_VARIANT, fallback: { from: dtype, reason } });
+  }
+}
+
+async function loadVariant({ preferred = "auto", dtype, fallback = null }) {
   if (!VARIANTS[dtype]) throw new Error(`Unknown model variant: ${dtype}`);
   await unload();
   const started = performance.now();
@@ -174,6 +187,7 @@ async function load({ preferred = "auto", dtype = DEFAULT_VARIANT } = {}) {
     fromCache,
     loadMs: Math.round(loadedAt - started),
     warmupMs: Math.round(performance.now() - loadedAt),
+    fallback,
   };
   post("ready", { runtime, cached: await cachedVariants() });
 }
@@ -269,8 +283,12 @@ async function removeDownloaded({ dtype = null } = {}) {
 self.addEventListener("message", async ({ data }) => {
   try {
     if (data.type === "init") stopSignal = createStopSignal(data.stopBuffer ?? null);
-    else if (data.type === "probe") post("probe", { cached: await cachedVariants() });
-    else if (data.type === "generate") await generate(data);
+    else if (data.type === "probe") {
+      const adapter = await self.navigator.gpu
+        ?.requestAdapter({ powerPreference: "high-performance" })
+        .catch(() => null);
+      post("probe", { cached: await cachedVariants(), gpu: gpuSupport(adapter?.info ?? null) });
+    } else if (data.type === "generate") await generate(data);
     else if (data.type === "stop") stopSignal.request();
     else if (data.type === "load") await load(data);
     else if (data.type === "unload") await unload();

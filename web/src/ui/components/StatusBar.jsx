@@ -57,6 +57,12 @@ export default function StatusBar({ model, locked, onLoad, onSelect }) {
           onChange={(dtype) => onSelect(dtype, model.cached?.[dtype], runtime?.device ?? "auto")}
         />
       )}
+      {state === "ready" && runtime.fallback && (
+        <p className="status-detail">
+          The 8-bit model could not be used, so the 4-bit model is loaded instead. Reason:{" "}
+          {runtime.fallback.reason}
+        </p>
+      )}
       {onSelect && model.dtype === "q8" && runtime?.device === "wasm" && (
         <p className="status-detail">
           The 8-bit model is very slow without WebGPU. The 4-bit model is recommended in this

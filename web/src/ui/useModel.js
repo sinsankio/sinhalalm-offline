@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DEFAULT_VARIANT, VARIANTS } from "../worker/variants.js";
+import { DEFAULT_VARIANT, VARIANTS, initialVariant } from "../worker/variants.js";
 import { createStopSignal } from "../worker/stop-signal.js";
 
 const VARIANT_KEY = "sinhalallm-variant";
@@ -25,9 +25,9 @@ const NO_ANSWER = {
 function readVariant() {
   try {
     const stored = localStorage.getItem(VARIANT_KEY);
-    return VARIANTS[stored] ? stored : DEFAULT_VARIANT;
+    return VARIANTS[stored] ? stored : null;
   } catch {
-    return DEFAULT_VARIANT;
+    return null;
   }
 }
 
@@ -59,7 +59,10 @@ async function requestPersistence() {
 
 export default function useModel({ onEvent } = {}) {
   const workerRef = useRef(null);
-  const [model, setModel] = useState(() => ({ ...INITIAL, dtype: readVariant() }));
+  const [model, setModel] = useState(() => ({
+    ...INITIAL,
+    dtype: readVariant() ?? DEFAULT_VARIANT,
+  }));
   const [storage, setStorage] = useState(null);
   const [answer, setAnswer] = useState(NO_ANSWER);
   const pendingRef = useRef("");
@@ -117,7 +120,7 @@ export default function useModel({ onEvent } = {}) {
         pendingRef.current += data.text;
         frameRef.current ||= requestAnimationFrame(flush);
       } else if (data.type === "probe") {
-        const dtype = readVariant();
+        const dtype = initialVariant({ saved: readVariant(), cached: data.cached, gpu: data.gpu });
         dtypeRef.current = dtype;
         if (data.cached[dtype]) {
           worker.postMessage({ type: "load", dtype });
@@ -135,6 +138,10 @@ export default function useModel({ onEvent } = {}) {
           fromCache: data.fromCache ?? current.fromCache,
           error: null,
         }));
+      } else if (data.type === "fallback") {
+        dtypeRef.current = data.to;
+        saveVariant(data.to);
+        setModel((current) => ({ ...current, dtype: data.to, progress: null }));
       } else if (data.type === "progress") {
         setModel((current) => ({ ...current, progress: data }));
       } else if (data.type === "ready") {
