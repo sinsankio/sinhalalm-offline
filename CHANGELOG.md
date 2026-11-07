@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/inference-worker — Model loading in a Web Worker
+
+#### Added
+
+- `web/src/worker/inference.worker.js`, which loads the model with transformers.js 4.3.1 in a Web Worker. It uses WebGPU when the browser offers a hardware adapter and rejects software adapters such as SwiftShader and llvmpipe, and otherwise falls back to WebAssembly with up to eight threads when the page is cross-origin isolated. A two-token warm-up run follows each load.
+- The model is downloaded only after a click on "Download model (1.19 GB)". A model that is already in the browser's Cache Storage is loaded automatically when the page opens.
+- The model panel shows the download progress, the backend, the load and warm-up times and whether the page is cross-origin isolated, and switches between Auto, WebGPU and WASM.
+- A storage panel shows how much of the browser's storage quota the site uses, and deletes the downloaded model after a confirmation, since a 1.19 GB model can fill a nearly full disk.
+- The ONNX Runtime WebAssembly files are copied from `node_modules` into `web/public/ort/` before `npm run dev` and `npm run build`, so the application does not load them from a CDN.
+
+#### Results
+
+- In headless Chrome without a hardware GPU, the model ran on WASM with seven threads. The first load from the local development server took 28.3 s plus a 6.7 s warm-up. After a reload, the model loaded from Cache Storage in 3.8 s plus a 5.4 s warm-up (9.2 s, within the 10 s target), and deleting it left the site with no cache and 0.00 GB of storage.
+
+#### Attempts
+
+- transformers.js loads its WebAssembly files from the jsDelivr CDN by default, which would break the offline mode, so the files are self-hosted.
+- The first production build copied the 1.2 GB model into `web/dist/` through the link in `web/public/models/` and filled the internal disk. The build now copies only `public/ort/`, and the model is served separately.
+- The first browser test failed to create a session, since the browser build of ONNX Runtime lacks `GatherBlockQuantized`. The fix was made on its own branch (fix/portable-embedding) and merged into this one.
+
 ### fix/portable-embedding — 4-bit embedding for the browser runtime
 
 #### Fixed

@@ -73,6 +73,15 @@ The first `make golden` or `make ci` downloads SinhalaLLM-1.7B (about 3.5 GB) at
 
 The pipeline uses two Python environments from the same `uv` project, since the model was saved with `transformers` 5.19.0 while the ONNX exporter requires 4.57.6. `make setup` creates both: `.venv` for the export toolchain and `.venv-reference` for the reference.
 
+### Running the application
+
+```bash
+make dev     # development server on http://localhost:5173
+make preview # production build on http://localhost:4173
+```
+
+On the first visit, the application asks before it downloads the model (1.19 GB). The model is then kept in the browser's Cache Storage and loaded from there on later visits. The storage panel shows how much space the site uses and can delete the downloaded model, for example when the disk is nearly full.
+
 ### Model store
 
 Downloaded checkpoints, converted models and generated logits are kept in a model store outside the repository, since they are too large for the internal disk. The store defaults to `build/`, and a local `local.mk` file (not committed) can point it to another location, such as an external drive:

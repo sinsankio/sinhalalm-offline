@@ -8,7 +8,9 @@
     "npm": ">=11"
   },
   "scripts": {
+    "predev": "node scripts/copy-ort.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-ort.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . && prettier --check .",

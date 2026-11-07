@@ -12,6 +12,7 @@ web/test-results/
 web/playwright-report/
 
 web/public/models/*
+web/public/ort/
 !web/public/models/.gitkeep
 
 build/
