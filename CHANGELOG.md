@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/quality-gate — Shipped variant and quality gate
+
+#### Decisions
+
+- q4-v0-small (1.18 GB) is the default variant of the application. It fits the 1.2 GB download target, so the target stays unchanged.
+- The quality gate no longer requires a perplexity within 2% of fp32, which no 4-bit variant of this model can meet. The shipped variant must instead have a perplexity no higher than the author's Q4_K_M release on the same FLORES+ sentences, and its answers are reviewed by a native speaker.
+- q8 is kept as an optional higher-quality variant if the RQ2 benchmarks show that it is fast enough on WebGPU.
+
+#### Added
+
+- `eval_quality.py reference-gguf`, which measures the author's Q4_K_M release on FLORES+ through `transformers`, and `eval_quality.py quality-gate`, which compares the default variant with it on the same sentences.
+- `make quality`, which runs the gate and is part of `make ci`, and `gguf` 0.19.0 in the export group.
+
+#### Changed
+
+- The proposal now defines the new quality gate in Section 5.6 and in the gate table, and names q4-v0-small as the shipped default.
+- `docs/findings/rq1-quantization.md` records the decision and the full-set reference result.
+
+#### Attempts
+
+- The first run of the gate was interrupted when the session ended before it produced any output, and was run again.
+
+#### Results
+
+- The quality gate passes: q4-v0-small reaches a perplexity of 158.0 on all 1,012 sentences, against 195.0 for Q4_K_M (+72.2% against fp32).
+
 ### feat/rq1-quality — RQ1 quantization quality
 
 #### Added
