@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatBytes, formatMs, median, summarizeBenchmark } from "../src/ui/diagnostics.js";
-import { combinedProgress, variantFileUrls } from "../src/worker/variants.js";
+import { combinedProgress, initialVariant, variantFileUrls } from "../src/worker/variants.js";
 
 describe("median", () => {
   it("handles odd, even and empty inputs", () => {
@@ -59,5 +59,25 @@ describe("variants", () => {
       combinedProgress({ a: { loaded: 50, total: 100 }, b: { loaded: 50, total: 300 } }),
     ).toEqual({ loaded: 100, total: 400, progress: 0.25 });
     expect(combinedProgress({ a: { loaded: 5 } }).progress).toBeNull();
+  });
+});
+
+describe("initialVariant", () => {
+  it("prefers the 8-bit model on hardware WebGPU", () => {
+    expect(initialVariant({ saved: null, cached: {}, gpu: "hardware" })).toBe("q8");
+  });
+
+  it("falls back to the 4-bit model without hardware WebGPU", () => {
+    expect(initialVariant({ saved: null, cached: {}, gpu: "software" })).toBe("q4");
+    expect(initialVariant({ saved: null, cached: {}, gpu: "none" })).toBe("q4");
+  });
+
+  it("keeps a downloaded 4-bit model instead of downloading the 8-bit one", () => {
+    expect(initialVariant({ saved: null, cached: { q4: true }, gpu: "hardware" })).toBe("q4");
+  });
+
+  it("respects the reader's choice", () => {
+    expect(initialVariant({ saved: "q8", cached: {}, gpu: "none" })).toBe("q8");
+    expect(initialVariant({ saved: "q4", cached: { q8: true }, gpu: "hardware" })).toBe("q4");
   });
 });

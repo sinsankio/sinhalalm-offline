@@ -48,6 +48,7 @@ This document summarizes the research and development findings of the project in
 - **q8 passes the quality gate and runs as fast as q4 on WebGPU.** Its perplexity is 115.5 (+2.0% against fp32), and it reached 26.6 tokens per second, against 26.5 for q4, at twice the download.
 - **The acceptance targets are met.** On WebAssembly, the first token of a 52-token question takes 5.2 s and the renderer process uses 2.35 GB, while the browser measures 1.78 GB of page memory.
 - **Decisions after the targets.** The WebAssembly time-to-first-token target is dropped, since WebAssembly is the slow fallback; the 2 GB target counts the page memory measured by the browser; the ZWJ rule stays until a native speaker names words that need a visible virama; and the application warns when q8 runs on WebAssembly instead of hiding it.
+- **q8 is the default on hardware WebGPU.** The application falls back to q4 without hardware WebGPU, or when q8 cannot be downloaded, stored or loaded, and then remembers q4. A forced download failure in the browser switched to q4 and removed the partial q8 files.
 
 ### RQ1: quantization quality
 

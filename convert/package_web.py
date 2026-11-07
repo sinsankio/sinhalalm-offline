@@ -123,7 +123,8 @@ def main() -> int:
     manifest = {
         "model": MODEL_NAME,
         "version": MODEL_VERSION,
-        "default": "q4",
+        "default": "q8",
+        "fallback": "q4",
         "variants": variants,
         "source": {"repo": REPO, "revision": REVISION},
         "files": files,

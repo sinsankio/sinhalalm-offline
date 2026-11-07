@@ -16,7 +16,7 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 - **ONNX export and quantization** — the model is exported with key-value caching and quantized into fp16, q8 and q4 variants. Operators that the browser runtime lacks or runs on the CPU are rewritten into equivalent ones, with identical logits.
 - **Tokenizer** — the transformers.js tokenizer is verified against the Python tokenizer, so that the browser produces the exact token IDs the model was trained on.
 - **ZWJ handling** — the zero-width joiner in the reader's question is normalized to the 15 conjunct clusters the model learned with it (for example, `ප්ර` becomes `ප්‍ර`, while `ව්‍ය` becomes `ව්ය`), and HTML entities are decoded in the output.
-- **Browser runtime** — transformers.js runs the model in a Web Worker on WebGPU, with a slower WebAssembly fallback. The 4-bit model (1.19 GB) is the default, and the 8-bit model (2.48 GB) is an optional download. Both store their weights in separate data files, which keeps the page memory low, and the answers are streamed with the ZWJ kept in conjuncts.
+- **Browser runtime** — transformers.js runs the model in a Web Worker on WebGPU, with a slower WebAssembly fallback. The 8-bit model (2.48 GB) is the default on hardware WebGPU, and the 4-bit model (1.19 GB) is used without it or when the 8-bit model cannot be stored or loaded. Both store their weights in separate data files, which keeps the page memory low, and the answers are streamed with the ZWJ kept in conjuncts.
 - **Offline layer** — a service worker keeps the page available without a connection, and the worker streams the model files into the browser's Cache Storage, where they stay until the reader deletes them.
 
 ### Project status
@@ -83,9 +83,9 @@ make dev     # development server on http://localhost:5173
 make preview # production build on http://localhost:4173
 ```
 
-Offline mode needs the production build (`make preview`), since the development server does not register the service worker. On the first visit, the application asks before it downloads the model (1.19 GB). The model is then kept in the browser's Cache Storage and loaded from there on later visits. The storage panel shows how much space the site uses and can delete the downloaded model, for example when the disk is nearly full.
+Offline mode needs the production build (`make preview`), since the development server does not register the service worker. On the first visit, the application asks before it downloads the model: 2.48 GB for the 8-bit model on hardware WebGPU, or 1.19 GB for the 4-bit model otherwise. The model is then kept in the browser's Cache Storage and loaded from there on later visits. The storage panel shows how much space the site uses and can delete the downloaded model, for example when the disk is nearly full.
 
-The Diagnostics tab shows the runtime, memory and storage, switches between the 4-bit model (1.19 GB, the default) and the more accurate 8-bit model (2.48 GB, practical only on WebGPU), runs a short benchmark and keeps a session log in the browser.
+The Diagnostics tab shows the runtime, memory and storage, switches between the 8-bit model (2.48 GB, the default on WebGPU) and the 4-bit fallback (1.19 GB), runs a short benchmark and keeps a session log in the browser.
 
 The application uses WebGPU when the browser offers it on a real GPU, and the processor (WebAssembly) otherwise, which is much slower. Chrome on Linux does not enable WebGPU by default. To use the GPU there, quit Chrome completely and start it with a separate profile:
 

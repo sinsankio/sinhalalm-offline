@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/q8-default — The 8-bit model as default
+
+#### Changed
+
+- On hardware WebGPU, the application now offers the 8-bit model (2.48 GB) by default. Without hardware WebGPU, the 4-bit model (1.19 GB) is the default, since the 8-bit model is not practical on WebAssembly. A downloaded 4-bit model is kept instead of downloading the 8-bit one, and a variant chosen by the reader always wins.
+- When the 8-bit model cannot be downloaded, stored or loaded, the worker removes its partial files, loads the 4-bit model instead, remembers that choice and says why in the model panel.
+- The package manifest names q8 as the default and q4 as the fallback.
+
+#### Results
+
+- In headless Chrome on WebGPU, the first visit offered the 8-bit model and loaded it. Without WebGPU, it offered the 4-bit model. With one q8 data file blocked, the download failed, the partial files were removed and the 4-bit model was loaded with the reason shown.
+
+#### Decisions
+
+- Sineth made q8 the default with q4 only as a fallback. The download target of 1.2 GB therefore applies to the q4 fallback, while the default download is 2.48 GB.
+
 ### feat/phase4-defaults — Decisions on the acceptance targets
 
 #### Added

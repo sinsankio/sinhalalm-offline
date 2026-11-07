@@ -181,7 +181,7 @@ flowchart LR
 
 *Figure 2: Text processing across input and output, which represents how the ZWJ is restored before encoding and how the output is kept intact while streaming.*
 
-**E) User interface.** The interface provides a question box, generation settings, a variant picker (the 4-bit model by default and the 8-bit model as an optional download), a load progress indicator and a limitations notice, and a Diagnostics tab with the runtime, memory, a benchmark and a session log. A Sinhala font (Noto Sans Sinhala) is bundled locally, so that conjuncts render correctly without a network connection.
+**E) User interface.** The interface provides a question box, generation settings, a variant picker (the 8-bit model by default on hardware WebGPU, and the 4-bit model as the fallback), a load progress indicator and a limitations notice, and a Diagnostics tab with the runtime, memory, a benchmark and a session log. A Sinhala font (Noto Sans Sinhala) is bundled locally, so that conjuncts render correctly without a network connection.
 
 **F) Offline layer.** A service worker caches the application shell, and the inference worker streams the model files into the browser's Cache Storage, from which transformers.js loads them (S16). The application also requests persistent storage through `navigator.storage.persist()`, which reduces the chance that the browser evicts the model under storage pressure. In other words, the offline reader depends on two caches: one for the page and one for the model.
 
@@ -314,7 +314,7 @@ The fp32 export of a 1.74B model needs about 7 GB of disk for the raw export and
 
 #### 5.6 Phase 5: Quality evaluation before the UI (RQ1)
 
-For each variant, we compute perplexity on the held-out set with ONNX Runtime in Python, together with the greedy agreement rate against fp32 on the golden questions. Since tokenizers differ between models, bits per character are reported alongside perplexity. The proposal originally shipped the smallest variant whose perplexity stays within 2% of fp32. RQ1 showed that no 4-bit variant of this model can meet that margin, and that even the author's own 4-bit release (Q4_K_M) loses about 50% ([rq1-quantization.md](findings/rq1-quantization.md)). The quality gate therefore requires the shipped variant to be at least as good as the author's 4-bit release on the same FLORES+ sentences, together with a review of its answers by a native speaker. The shipped default is q4-v0-small (1.18 GB), which keeps the value projection of layer 0 in fp32 and stays within NFR5. q8 passed the same gate with a perplexity of 115.5 and is offered as an optional download, since it reached the same speed as q4 on WebGPU ([browser-runtime.md](findings/browser-runtime.md#12-the-8-bit-variant)). Since the browser application is built only after this step, a variant that fails here never reaches the reader.
+For each variant, we compute perplexity on the held-out set with ONNX Runtime in Python, together with the greedy agreement rate against fp32 on the golden questions. Since tokenizers differ between models, bits per character are reported alongside perplexity. The proposal originally shipped the smallest variant whose perplexity stays within 2% of fp32. RQ1 showed that no 4-bit variant of this model can meet that margin, and that even the author's own 4-bit release (Q4_K_M) loses about 50% ([rq1-quantization.md](findings/rq1-quantization.md)). The quality gate therefore requires the shipped variant to be at least as good as the author's 4-bit release on the same FLORES+ sentences, together with a review of its answers by a native speaker. q4-v0-small (1.18 GB) keeps the value projection of layer 0 in fp32 and stays within NFR5. q8 passed the same gate with a perplexity of 115.5 and reached the same speed as q4 on WebGPU, so at the end of Phase 4 it became the default on hardware WebGPU, with q4 as the fallback ([browser-runtime.md](findings/browser-runtime.md#12-the-8-bit-variant)). Since the browser application is built only after this step, a variant that fails here never reaches the reader.
 
 #### 5.7 Phase 6: Browser application
 
@@ -460,7 +460,7 @@ The application is ready for release when all parity gates pass, the selected va
 
 | Metric | Target |
 |---|---|
-| Download size | at most 1.2 GB for the default variant |
+| Download size | 2.48 GB for the default variant (q8) on hardware WebGPU, and at most 1.2 GB for the q4 fallback, which is used without hardware WebGPU or when q8 cannot be stored or loaded |
 | Peak tab memory | at most 2 GB of page memory as measured by the browser, with the context capped at 1,024 tokens; the memory of the renderer process is recorded alongside |
 | Warm load time | at most 10 s |
 | Time to first token (about 60 prompt tokens) | at most 1 s on WebGPU; multi-threaded WASM is a slow fallback without a target (S12) |
