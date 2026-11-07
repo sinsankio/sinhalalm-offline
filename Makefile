@@ -64,7 +64,7 @@ $(eval $(call content_stamp,rq1,$(RQ1_INPUTS)))
 $(eval $(call content_stamp,package,$(PACKAGE_INPUTS)))
 $(eval $(call content_stamp,parity,$(PARITY_INPUTS)))
 
-.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify test-web ci
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify dev preview test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -162,6 +162,12 @@ rq1: quantize ## RQ1: perplexity and answer agreement of every candidate variant
 
 verify: check-golden ## Rerun golden generation and gate 1 from scratch
 	$(PY) convert/parity_check.py
+
+dev: ## Start the development server on http://localhost:5173
+	cd $(WEB) && $(NPM) run dev -- --host 127.0.0.1 --port 5173 --strictPort
+
+preview: ## Build and serve the production build on http://localhost:4173
+	cd $(WEB) && $(NPM) run build && $(NPM) run preview -- --host 127.0.0.1 --port 4173 --strictPort
 
 test-web: $(TOKENIZER_CORPUS) ## Run web unit tests, including gate 3
 	cd $(WEB) && $(NPM) test

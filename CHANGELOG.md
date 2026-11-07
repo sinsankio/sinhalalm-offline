@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/ui-shell — Application shell
+
+#### Added
+
+- A Vite and React application shell in `web/src/ui/`: a question box with four sample questions, an answer area, a model status panel, generation settings, a limitations notice and credits for the model and its base model. The interface follows the system's light or dark mode.
+- Noto Sans Sinhala (SIL Open Font License) is bundled through `@fontsource/noto-sans-sinhala` 5.3.0, so that Sinhala text renders the same way without a network connection.
+- React 19.1.10 with `@vitejs/plugin-react` 6.1.2 and the React lint rules, and `make dev` and `make preview` for local testing.
+
+#### Revised
+
+- The font package's default import also loaded the font's Latin glyphs, which gave English text very wide word spacing. The application now declares the font itself, limited to the Sinhala block, the zero-width joiners and the dandas, so that Sinhala uses the bundled font and everything else uses the system font.
+- After the first review, the title changed from සිංහල ප්‍රශ්න to "Offline සිංහල", with "Offline Q&A in Sinhala Language" next to it, and the browser tab title changed to match.
+- After the second review, the brown accent colors were replaced with green ones in both the light and the dark theme.
+
+#### Decisions
+
+- The interface labels stay in English for now, with Sinhala for the title, the question placeholder and the sample questions.
+- The benchmark page of the plan becomes part of a Diagnostics tab, which also shows memory, speed, a session log kept in the browser (IndexedDB), and switching between backends and variants. The q8 variant is packaged for switching once WebGPU switching works.
+
 ### feat/web-model-package — Model package for the web application
 
 #### Added

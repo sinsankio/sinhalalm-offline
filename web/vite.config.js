@@ -1,3 +1,4 @@
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const crossOriginIsolation = {
@@ -6,6 +7,7 @@ const crossOriginIsolation = {
 };
 
 export default defineConfig({
+  plugins: [react()],
   server: { headers: crossOriginIsolation },
   preview: { headers: crossOriginIsolation },
   worker: { format: "es" },
