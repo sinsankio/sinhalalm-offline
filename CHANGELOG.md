@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Answers are streamed as they are generated, with HTML entities resolved, and the interface applies the streamed text at most once per frame. A temperature of 0 selects greedy decoding.
 - A Stop button, Ctrl+Enter to ask, and a line under each answer with the number of tokens, the speed and the time to the first token. Backend switching and model deletion are locked while an answer is generated.
 - `web/src/worker/generation.js` and `web/tests/generation.test.js` for the prompt, the generation options, the stop reason and the statistics.
+- When the model runs on WASM because WebGPU is missing or only available in software, the model panel says so. On Linux, it also shows how to start Chrome with WebGPU on the GPU (S13). Selecting WebGPU explicitly now gives the same reason instead of a generic message.
 
 #### Results
 

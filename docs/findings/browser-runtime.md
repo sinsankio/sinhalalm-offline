@@ -1,6 +1,6 @@
 # Browser runtime compatibility of the q4 model
 
-The first browser test of the packaged q4-v0-small model failed while the session was created, before any token was generated. In this document, we report the cause (S10), the replacement that makes the model load in the browser runtime, and the checks that show the replacement does not change the model. The first answers in the browser then showed two speed problems, which we report as S11 (WebGPU) and S12 (WebAssembly).
+The first browser test of the packaged q4-v0-small model failed while the session was created, before any token was generated. In this document, we report the cause (S10), the replacement that makes the model load in the browser runtime, and the checks that show the replacement does not change the model. The first answers in the browser then showed two speed problems, which we report as S11 (WebGPU) and S12 (WebAssembly), and the first manual test showed that Chrome on Linux does not offer hardware WebGPU by default (S13).
 
 ### 1. The failure
 
@@ -63,3 +63,15 @@ These are measurements of a plain ONNX Runtime session in headless Chrome over 5
 **S12 — The WebAssembly backend is far below its target.** Without a GPU, the model generated 0.6 tokens per second with seven threads, against a target of 5. A profile of two steps attributes 94% of the time to `MatMulNBits`, the 4-bit matrix product, and its time hardly depends on the number of tokens in the step. This indicates that the WebAssembly build of ONNX Runtime has no optimized kernel for this operator and converts each 4-bit weight matrix to fp32 at every call. Threads do work: one thread needs 8.7 s per token and seven threads 2.3 s. Computing with 8-bit activations (`accuracy_level` 4) made it slower, at 3.7 s per token.
 
 The rewrites of S10 and S11 do not affect this, since they touch only the embedding and the attention. A faster WebAssembly path needs a different weight format, such as 8-bit weights with `MatMulInteger`, which has optimized WebAssembly kernels but is larger to download.
+
+### 7. WebGPU in Chrome on Linux
+
+**S13 — Chrome on Linux does not offer hardware WebGPU by default.** In the first manual test, Chrome 154 on a Linux laptop with an RTX 3060 Laptop GPU and an Intel Iris Xe GPU fell back to WebAssembly, and selecting WebGPU failed. Headless Chrome on the same laptop showed the cause:
+
+| Chrome flags | WebGPU adapter |
+|---|---|
+| none | none |
+| `--enable-unsafe-webgpu` | SwiftShader, a software adapter |
+| `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan` | NVIDIA, Ampere architecture |
+
+The application rejects software adapters, since they run on the processor and would be slower than WebAssembly. Visitors who use Chrome on Linux therefore get the WebAssembly speed of S12 unless they start Chrome with these flags. The application now says why it runs on the processor and, on Linux, shows the command with a separate profile, since the flags enable WebGPU features that Chrome has not yet approved for Linux.
