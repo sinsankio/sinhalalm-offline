@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { VARIANTS } from "../../worker/variants.js";
 import {
   BENCHMARK_QUESTIONS,
@@ -157,17 +157,70 @@ function Variants({ model, locked, onLoad, onRemove }) {
   );
 }
 
+function benchmarkLabel({ phase, results }) {
+  if (phase === "asking") {
+    const current = Math.min(results.length + 1, BENCHMARK_QUESTIONS.length);
+    return `Asking ${current} of ${BENCHMARK_QUESTIONS.length}…`;
+  }
+  if (phase === "measuring") return "Measuring memory…";
+  return "Run";
+}
+
+function BenchmarkReport({ report, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (report && !ref.current?.open) ref.current?.showModal();
+  }, [report]);
+  if (!report) return null;
+  const { summary, runtime, pageBytes } = report;
+  const adapter = runtime.adapter
+    ? `${runtime.adapter.vendor} ${runtime.adapter.architecture}`
+    : "none";
+  return (
+    <dialog ref={ref} className="report" onClose={onClose} aria-labelledby="report-title">
+      <h2 id="report-title">Benchmark results</h2>
+      <Facts
+        rows={[
+          ["Variant", `${runtime.dtype} (${VARIANTS[runtime.dtype].label})`],
+          [
+            "Backend",
+            runtime.device === "webgpu"
+              ? `WebGPU (${adapter})`
+              : `WASM (${runtime.wasmThreads} threads)`,
+          ],
+          ["Questions answered", `${summary.answered} of ${summary.questions}`],
+          ["Median first token", formatMs(summary.medianFirstTokenMs)],
+          [
+            "Median speed",
+            summary.medianTokensPerSecond != null
+              ? `${summary.medianTokensPerSecond.toFixed(1)} tokens/s`
+              : "–",
+          ],
+          ["Tokens generated", summary.tokens],
+          ["Total generation time", formatMs(summary.totalMs)],
+          ["Page memory after the run", formatBytes(pageBytes)],
+        ]}
+      />
+      <form method="dialog" className="row-actions">
+        <button type="submit" className="primary">
+          Close
+        </button>
+      </form>
+    </dialog>
+  );
+}
+
 function Benchmark({ benchmark, ready, locked, onRun }) {
-  const { running, results, summary } = benchmark;
+  const { results, summary } = benchmark;
   return (
     <>
       <p className="hint">
-        Asks {BENCHMARK_QUESTIONS.length} sample questions with greedy decoding and up to{" "}
+        Asks the {BENCHMARK_QUESTIONS.length} sample questions with greedy decoding and up to{" "}
         {BENCHMARK_SETTINGS.maxNewTokens} tokens each, on the loaded variant and backend.
       </p>
       <div className="row-actions">
         <button type="button" className="primary" disabled={!ready || locked} onClick={onRun}>
-          {running ? `Running ${results.length + 1} of ${BENCHMARK_QUESTIONS.length}…` : "Run"}
+          {benchmarkLabel(benchmark)}
         </button>
       </div>
       {results.length > 0 && (
@@ -284,7 +337,12 @@ function SessionLog({ entries, onClear }) {
 export default function Diagnostics({ model, storage, locked, onLoad, onRemove, ask, logVersion }) {
   const memory = useMemory(true);
   const [entries, setEntries] = useState([]);
-  const [benchmark, setBenchmark] = useState({ running: false, results: [], summary: null });
+  const [benchmark, setBenchmark] = useState({
+    phase: "idle",
+    results: [],
+    summary: null,
+    report: null,
+  });
   const refresh = useCallback(() => listEntries().then(setEntries), []);
 
   useEffect(() => {
@@ -292,21 +350,28 @@ export default function Diagnostics({ model, storage, locked, onLoad, onRemove, 
   }, [refresh, logVersion]);
 
   const runBenchmark = async () => {
-    setBenchmark({ running: true, results: [], summary: null });
+    const runtime = model.runtime;
+    setBenchmark({ phase: "asking", results: [], summary: null, report: null });
     const results = [];
     for (const question of BENCHMARK_QUESTIONS) {
       const result = await ask(question, BENCHMARK_SETTINGS, { show: false, source: "benchmark" });
       results.push({ question, ...result });
-      setBenchmark({ running: true, results: [...results], summary: null });
+      setBenchmark((current) => ({ ...current, results: [...results] }));
     }
     const summary = summarizeBenchmark(results);
+    setBenchmark((current) => ({ ...current, phase: "measuring", summary }));
     const pageBytes = await memory.measure();
-    setBenchmark({ running: false, results, summary });
+    setBenchmark({
+      phase: "idle",
+      results,
+      summary,
+      report: { summary, runtime, pageBytes },
+    });
     await addEntry({
       type: "benchmark",
-      dtype: model.runtime.dtype,
-      device: model.runtime.device,
-      adapter: model.runtime.adapter,
+      dtype: runtime.dtype,
+      device: runtime.device,
+      adapter: runtime.adapter,
       summary,
       pageBytes,
       userAgent: navigator.userAgent,
@@ -314,7 +379,8 @@ export default function Diagnostics({ model, storage, locked, onLoad, onRemove, 
     refresh();
   };
 
-  const busy = locked || benchmark.running || model.state !== "ready";
+  const running = benchmark.phase !== "idle";
+  const busy = locked || running || model.state !== "ready";
   return (
     <div className="diagnostics">
       <section className="panel">
@@ -329,9 +395,7 @@ export default function Diagnostics({ model, storage, locked, onLoad, onRemove, 
         <h2 className="panel-label">Model and backend</h2>
         <Variants
           model={model}
-          locked={
-            locked || benchmark.running || ["loading", "warming", "removing"].includes(model.state)
-          }
+          locked={locked || running || ["loading", "warming", "removing"].includes(model.state)}
           onLoad={onLoad}
           onRemove={onRemove}
         />
@@ -343,6 +407,10 @@ export default function Diagnostics({ model, storage, locked, onLoad, onRemove, 
           ready={model.state === "ready"}
           locked={busy}
           onRun={runBenchmark}
+        />
+        <BenchmarkReport
+          report={benchmark.report}
+          onClose={() => setBenchmark((current) => ({ ...current, report: null }))}
         />
       </section>
       <section className="panel panel-wide">

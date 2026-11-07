@@ -1,6 +1,7 @@
 import { VARIANTS } from "../../worker/variants.js";
 import useOnline from "../useOnline.js";
 import GpuHint from "./GpuHint.jsx";
+import VariantPicker from "./VariantPicker.jsx";
 
 const BACKENDS = [
   { value: "auto", label: "Auto" },
@@ -34,7 +35,7 @@ function describe(model) {
   return "The model is not loaded.";
 }
 
-export default function StatusBar({ model, locked, onLoad }) {
+export default function StatusBar({ model, locked, onLoad, onSelect }) {
   const { state, runtime, progress, error } = model;
   const online = useOnline();
   const busy = state === "checking" || state === "loading" || state === "warming";
@@ -48,6 +49,14 @@ export default function StatusBar({ model, locked, onLoad }) {
   return (
     <section className={`panel status status-${tone}`} aria-live="polite">
       <h2 className="panel-label">Model</h2>
+      {onSelect && (
+        <VariantPicker
+          value={model.dtype}
+          cached={model.cached}
+          disabled={locked || busy || state === "removing"}
+          onChange={(dtype) => onSelect(dtype, model.cached?.[dtype], runtime?.device ?? "auto")}
+        />
+      )}
       <p className="status-message">
         <span className="status-dot" aria-hidden="true" />
         {describe(model)}
