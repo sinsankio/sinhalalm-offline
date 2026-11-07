@@ -9,9 +9,14 @@ import { createEntityDecoder, decodeEntities } from "../text/entities.js";
 import { buildMessages, generationOptions, generationStats, stopReason } from "./generation.js";
 import { describeAdapter, gpuSupport, wasmThreads, webgpuUnavailableMessage } from "./runtime.js";
 import { createStopSignal } from "./stop-signal.js";
+import {
+  DEFAULT_VARIANT,
+  MODEL_ID,
+  VARIANTS,
+  combinedProgress,
+  variantFileUrls,
+} from "./variants.js";
 
-const MODEL_ID = "sinhalallm-1.7b/v2.1";
-const MODEL_FILE = `/models/${MODEL_ID}/onnx/model_q4.onnx`;
 const WARMUP_QUESTION = "ආයුබෝවන්";
 
 env.allowRemoteModels = false;
@@ -45,27 +50,28 @@ async function chooseDevice(preferred) {
   return { device: "wasm", adapter: described, gpu };
 }
 
-async function isCached() {
+async function cachedVariants() {
+  const cached = Object.fromEntries(Object.keys(VARIANTS).map((dtype) => [dtype, false]));
   try {
+    if (!(await caches.has(env.cacheKey))) return cached;
     const cache = await caches.open(env.cacheKey);
-    const keys = [MODEL_FILE, new URL(MODEL_FILE, self.location.origin).href];
-    for (const key of keys) {
-      if (await cache.match(key)) return true;
+    for (const dtype of Object.keys(VARIANTS)) {
+      const urls = variantFileUrls(dtype, self.location.origin);
+      const found = await Promise.all(urls.map((url) => cache.match(url)));
+      cached[dtype] = found.every(Boolean);
     }
   } catch {
-    return false;
+    return cached;
   }
-  return false;
+  return cached;
 }
 
+let downloads = {};
+
 function onProgress(event) {
-  if (event.status !== "progress" || !event.file?.endsWith(".onnx")) return;
-  post("progress", {
-    file: event.file,
-    loaded: event.loaded,
-    total: event.total,
-    progress: event.total ? event.loaded / event.total : null,
-  });
+  if (event.status !== "progress" || !/\.onnx(_data)?$/.test(event.file ?? "")) return;
+  downloads[event.file] = { loaded: event.loaded, total: event.total };
+  post("progress", combinedProgress(downloads));
 }
 
 async function warmUp() {
@@ -76,19 +82,22 @@ async function warmUp() {
   await model.generate({ ...inputs, max_new_tokens: 2, do_sample: false });
 }
 
-async function load({ preferred = "auto" } = {}) {
+async function load({ preferred = "auto", dtype = DEFAULT_VARIANT } = {}) {
+  if (!VARIANTS[dtype]) throw new Error(`Unknown model variant: ${dtype}`);
   await unload();
   const started = performance.now();
-  const fromCache = await isCached();
+  const fromCache = (await cachedVariants())[dtype];
   const { device, adapter, gpu } = await chooseDevice(preferred);
   const threads = wasmThreads(self.navigator.hardwareConcurrency, self.crossOriginIsolated);
   env.backends.onnx.wasm.numThreads = threads;
-  post("status", { state: "loading", device, fromCache });
+  downloads = {};
+  post("status", { state: "loading", device, dtype, fromCache });
 
   tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
   model = await AutoModelForCausalLM.from_pretrained(MODEL_ID, {
     device,
-    dtype: "q4",
+    dtype,
+    use_external_data_format: VARIANTS[dtype].externalData,
     session_options: {
       graphOptimizationLevel: "all",
       freeDimensionOverrides: { batch_size: 1 },
@@ -96,12 +105,12 @@ async function load({ preferred = "auto" } = {}) {
     progress_callback: onProgress,
   });
   const loadedAt = performance.now();
-  post("status", { state: "warming", device });
+  post("status", { state: "warming", device, dtype });
   await warmUp();
 
   runtime = {
     model: MODEL_ID,
-    dtype: "q4",
+    dtype,
     device,
     adapter,
     gpu,
@@ -111,7 +120,7 @@ async function load({ preferred = "auto" } = {}) {
     loadMs: Math.round(loadedAt - started),
     warmupMs: Math.round(performance.now() - loadedAt),
   };
-  post("ready", { runtime });
+  post("ready", { runtime, cached: await cachedVariants() });
 }
 
 function eosIds() {
@@ -191,21 +200,26 @@ async function unload() {
   }
 }
 
-async function removeDownloaded() {
-  await unload();
-  const removed = await caches.delete(env.cacheKey);
-  post("removed", { removed });
+async function removeDownloaded({ dtype = null } = {}) {
+  if (!dtype || runtime?.dtype === dtype) await unload();
+  if (dtype) {
+    const cache = await caches.open(env.cacheKey);
+    await Promise.all(variantFileUrls(dtype, self.location.origin).map((url) => cache.delete(url)));
+  }
+  const cached = await cachedVariants();
+  if (!dtype || !Object.values(cached).some(Boolean)) await caches.delete(env.cacheKey);
+  post("removed", { dtype, cached: await cachedVariants(), loaded: runtime });
 }
 
 self.addEventListener("message", async ({ data }) => {
   try {
     if (data.type === "init") stopSignal = createStopSignal(data.stopBuffer ?? null);
-    else if (data.type === "probe") post("probe", { fromCache: await isCached() });
+    else if (data.type === "probe") post("probe", { cached: await cachedVariants() });
     else if (data.type === "generate") await generate(data);
     else if (data.type === "stop") stopSignal.request();
     else if (data.type === "load") await load(data);
     else if (data.type === "unload") await unload();
-    else if (data.type === "remove") await removeDownloaded();
+    else if (data.type === "remove") await removeDownloaded(data);
   } catch (error) {
     const message = error?.message ?? String(error);
     if (data.type === "generate") post("answer-error", { id: data.id, message });

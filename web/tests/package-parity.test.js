@@ -34,6 +34,7 @@ describe.skipIf(!expectedPath)("packaged model parity with Python", () => {
     const model = await AutoModelForCausalLM.from_pretrained(expected.model, {
       dtype: "q4",
       device: "cpu",
+      use_external_data_format: 1,
     });
     const byKey = Object.fromEntries(golden.cases.map((item) => [item.key, item]));
     for (const { key, ids } of expected.cases) {
@@ -66,10 +67,13 @@ describe.skipIf(!expectedPath)("packaged model parity with Python", () => {
         mjs: join(ortDist, "ort-wasm-simd-threaded.asyncify.mjs"),
         wasm: join(ortDist, "ort-wasm-simd-threaded.asyncify.wasm"),
       };
-      const session = await ort.InferenceSession.create(
-        join(modelsPath, expected.model, "onnx", "model_q4.onnx"),
-        { executionProviders: ["wasm"] },
-      );
+      const onnxDir = join(modelsPath, expected.model, "onnx");
+      const session = await ort.InferenceSession.create(join(onnxDir, "model_q4.onnx"), {
+        executionProviders: ["wasm"],
+        externalData: [
+          { path: "model_q4.onnx_data", data: readFileSync(join(onnxDir, "model_q4.onnx_data")) },
+        ],
+      });
       const pastNames = session.inputNames.filter((name) => name.startsWith("past_key_values"));
       const byKey = Object.fromEntries(golden.cases.map((item) => [item.key, item]));
       for (const { key, ids } of expected.cases) {
