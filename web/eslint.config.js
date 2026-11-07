@@ -5,14 +5,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: [
-      "dist/",
-      "dev-dist/",
-      "public/models/",
-      "public/ort/",
-      "playwright-report/",
-      "test-results/",
-    ],
+    ignores: ["dist/", "dev-dist/", "public/models/", "playwright-report/", "test-results/"],
   },
   js.configs.recommended,
   {
