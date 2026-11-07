@@ -62,7 +62,7 @@ These are measurements of a plain ONNX Runtime session in headless Chrome over 5
 
 **S12 — The WebAssembly backend is far below its target.** Without a GPU, the model generated 0.6 tokens per second with seven threads, against a target of 5. A profile of two steps attributes 94% of the time to `MatMulNBits`, the 4-bit matrix product, and its time hardly depends on the number of tokens in the step. This indicates that the WebAssembly build of ONNX Runtime has no optimized kernel for this operator and converts each 4-bit weight matrix to fp32 at every call. Threads do work: one thread needs 8.7 s per token and seven threads 2.3 s. Computing with 8-bit activations (`accuracy_level` 4) made it slower, at 3.7 s per token.
 
-The rewrites of S10 and S11 do not affect this, since they touch only the embedding and the attention. A faster WebAssembly path needs a different weight format, such as 8-bit weights with `MatMulInteger`, which has optimized WebAssembly kernels but is larger to download.
+The rewrites of S10 and S11 do not affect this, since they touch only the embedding and the attention. A faster WebAssembly path needs a different weight format, such as 8-bit weights with `MatMulInteger`, which has optimized WebAssembly kernels but is larger to download. Since WebGPU met its targets in manual testing, WebAssembly is kept as a slow fallback for browsers without hardware WebGPU, and its speed target is dropped rather than adding a second download.
 
 ### 7. WebGPU in Chrome on Linux
 

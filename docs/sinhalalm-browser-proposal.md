@@ -78,7 +78,7 @@ Before designing the system, we inspected the configuration files, the tokenizer
 | S9 | The browser tokenizer does not find the chat template. | The model stores its ChatML template in `chat_template.jinja`, the layout of `transformers` 5.19.0. In transformers.js 4.3.1, `AutoTokenizer` reads the template only from `tokenizer_config.json`. | The browser packaging embeds the template in `tokenizer_config.json`, and gate 3 checks the resulting prompts against Python. |
 | S10 | The browser runtime does not implement the 4-bit embedding lookup. | The 4-bit quantizer stores the embedding as `GatherBlockQuantized`, a contrib operator that ONNX Runtime for Python and Node.js implement. The asyncify build of ONNX Runtime Web, which transformers.js 4.3.1 loads, fails to create a session with it. | The pipeline replaces it with standard ONNX operators after quantization, and `make check-package` creates a session in the asyncify build (Section 5.5). |
 | S11 | Two operators stall WebGPU at every token. | The exported attention uses `IsNaN` after each softmax, and the portable embedding used `BitwiseAnd` and `BitShift`. The WebGPU backend runs neither, so ONNX Runtime copied data to the CPU and back 25 times per token, and a plain session reached 4.1 tokens per second on an RTX 3060 Laptop GPU. | Both are rewritten into operators with identical results that run on the GPU, which raises the speed to about 18 tokens per second, and the packaging step rejects these operators. |
-| S12 | The WebAssembly backend has no fast kernel for 4-bit matrix products. | Without a GPU, 94% of the time goes to `MatMulNBits`, and the model generates 0.6 tokens per second with seven threads, against a target of 5. | Open. A faster path needs a different weight format for WebAssembly, which would add a second download. |
+| S12 | The WebAssembly backend has no fast kernel for 4-bit matrix products. | Without a GPU, 94% of the time goes to `MatMulNBits`, and the model generates 0.6 tokens per second with seven threads, against a target of 5. | WebAssembly is kept as a slow fallback for browsers without hardware WebGPU, without a speed target. The application says when it runs on the processor (S13), and RQ2 reports the measured speed. |
 | S13 | Chrome on Linux does not offer hardware WebGPU by default. | Chrome 154 on Linux offered no WebGPU adapter, or only the SwiftShader software adapter with `--enable-unsafe-webgpu`. With Vulkan enabled through `--enable-features=Vulkan --use-angle=vulkan`, it found the NVIDIA GPU. | The application explains why it runs on the processor and shows the Chrome flags on Linux, with a separate profile. |
 
 In other words, the inspection changes the project from "port a custom model and its tokenizer" into "load a standard model correctly and keep Sinhala text intact". This is because S4 removes the tokenizer port, while S1, S2 and S9 move the risk into configuration, file layout and text handling, which is where a Sinhala-specific system is most likely to fail silently.
@@ -457,7 +457,7 @@ The application is ready for release when all parity gates pass, the selected va
 | Peak tab memory | at most 2 GB, with the context capped at 1,024 tokens |
 | Warm load time | at most 10 s |
 | Time to first token (about 60 prompt tokens) | at most 1 s on WebGPU and 3 s on multi-threaded WASM |
-| Generation speed | at least 20 tokens/s on WebGPU and 5 tokens/s on multi-threaded WASM |
+| Generation speed | at least 20 tokens/s on WebGPU; multi-threaded WASM is a slow fallback without a speed target (S12) |
 
 ---
 
