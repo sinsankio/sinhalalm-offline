@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/phase4-defaults — Decisions on the acceptance targets
+
+#### Added
+
+- A warning in the model panel when the 8-bit model runs on WebAssembly, which recommends the 4-bit model in that browser.
+
+#### Decisions
+
+- Sineth kept the proposed defaults for the four open questions. The WebAssembly time-to-first-token target is dropped, since WebAssembly is the slow fallback. The 2 GB memory target counts the page memory measured by the browser, with the renderer process recorded alongside. The ZWJ rule for answers stays as it is until a native speaker names words that need a visible virama. q8 stays available on WebAssembly with a warning.
+
 ### docs/phase4-wrapup — Documentation at the end of Phase 4
 
 #### Changed

@@ -461,12 +461,12 @@ The application is ready for release when all parity gates pass, the selected va
 | Metric | Target |
 |---|---|
 | Download size | at most 1.2 GB for the default variant |
-| Peak tab memory | at most 2 GB, with the context capped at 1,024 tokens |
+| Peak tab memory | at most 2 GB of page memory as measured by the browser, with the context capped at 1,024 tokens; the memory of the renderer process is recorded alongside |
 | Warm load time | at most 10 s |
-| Time to first token (about 60 prompt tokens) | at most 1 s on WebGPU and 3 s on multi-threaded WASM |
+| Time to first token (about 60 prompt tokens) | at most 1 s on WebGPU; multi-threaded WASM is a slow fallback without a target (S12) |
 | Generation speed | at least 20 tokens/s on WebGPU; multi-threaded WASM is a slow fallback without a speed target (S12) |
 
-The measured values are listed in [browser-runtime.md](findings/browser-runtime.md#13-acceptance-targets): all targets are met on WebGPU, while on WASM the first token of a 52-token question takes 5.2 s.
+The measured values are listed in [browser-runtime.md](findings/browser-runtime.md#13-acceptance-targets), and all targets are met.
 
 ---
 

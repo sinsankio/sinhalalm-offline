@@ -57,6 +57,12 @@ export default function StatusBar({ model, locked, onLoad, onSelect }) {
           onChange={(dtype) => onSelect(dtype, model.cached?.[dtype], runtime?.device ?? "auto")}
         />
       )}
+      {onSelect && model.dtype === "q8" && runtime?.device === "wasm" && (
+        <p className="status-detail">
+          The 8-bit model is very slow without WebGPU. The 4-bit model is recommended in this
+          browser.
+        </p>
+      )}
       <p className="status-message">
         <span className="status-dot" aria-hidden="true" />
         {describe(model)}

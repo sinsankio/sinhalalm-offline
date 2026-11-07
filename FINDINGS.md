@@ -46,8 +46,8 @@ This document summarizes the research and development findings of the project in
 - **S15 and S16: large files need care.** A single 2.48 GB data file never finished loading, so q8 is split into two parts, and Chrome could not cache the 1.18 GB data file from memory, so the worker now streams the model files into the cache itself.
 - **S17: a nearly full disk stops downloads early.** Chrome refused to store q8 after 2.15 GB with 6 GB free on the disk, although it reported an 11.9 GB quota; the application now explains this and removes the partial download.
 - **q8 passes the quality gate and runs as fast as q4 on WebGPU.** Its perplexity is 115.5 (+2.0% against fp32), and it reached 26.6 tokens per second, against 26.5 for q4, at twice the download.
-- **The acceptance targets are met on WebGPU.** On WebAssembly, the first token of a 52-token question takes 5.2 s, above the 3 s target, and the renderer process uses 2.35 GB, while the browser measures 1.78 GB of page memory.
-- **Open decisions.** Whether the 3 s time-to-first-token target still applies to WebAssembly, whether the 2 GB memory target counts the page memory measured by the browser (1.78 GB) or the renderer process (2.35 GB), which words, if any, need a visible virama before ය or ර in the output, and whether q8 is hidden or only marked as slow on WebAssembly.
+- **The acceptance targets are met.** On WebAssembly, the first token of a 52-token question takes 5.2 s and the renderer process uses 2.35 GB, while the browser measures 1.78 GB of page memory.
+- **Decisions after the targets.** The WebAssembly time-to-first-token target is dropped, since WebAssembly is the slow fallback; the 2 GB target counts the page memory measured by the browser; the ZWJ rule stays until a native speaker names words that need a visible virama; and the application warns when q8 runs on WebAssembly instead of hiding it.
 
 ### RQ1: quantization quality
 
