@@ -5,7 +5,7 @@ export default function Header() {
     <header className="header">
       <div>
         <h1 className="title">
-          සිංහල ප්‍රශ්න <span className="title-latin">Offline Q&amp;A</span>
+          Offline සිංහල <span className="title-latin">Offline Q&amp;A in Sinhala Language</span>
         </h1>
         <p className="subtitle">
           Ask a question in Sinhala. {MODEL.name} answers it inside your browser, with no server and
