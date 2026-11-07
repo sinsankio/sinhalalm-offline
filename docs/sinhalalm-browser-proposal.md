@@ -310,7 +310,7 @@ For each variant, we compute perplexity on the held-out set with ONNX Runtime in
 
 #### 5.7 Phase 6: Browser application
 
-The application is built with Vite, with the inference code in a Web Worker. The worker core is shown below:
+The application is built with Vite and React, with the inference code in a Web Worker. React keeps the interface in components, while Vite keeps the build small and the offline layer simple, since the application has no server-side features to use. The worker core is shown below:
 
 ```js
 import { AutoModelForCausalLM, AutoTokenizer, TextStreamer, env } from "@huggingface/transformers";
@@ -346,6 +346,17 @@ async function answer(question, opts, onText) {
 ```
 
 The device is selected before loading: WebGPU when `navigator.gpu.requestAdapter()` returns a hardware adapter, and WASM otherwise. The streamer interface and its handling of incomplete characters should be checked against the pinned transformers.js version.
+
+The application applies runtime optimizations that need no change to the model files:
+
+- **Backend** — WebGPU on a hardware adapter, with multi-threaded WASM as the fallback and software adapters treated as unavailable.
+- **Key-value cache on the GPU** — on WebGPU, the cache stays in GPU buffers between steps, so that it is not copied to the CPU for every token.
+- **Warm-up** — a short generation runs right after loading, so that WebGPU compiles its shaders before the reader's first question.
+- **Early loading** — the model starts loading when the page opens, and the worker stays alive between questions.
+- **WASM threads and session options** — the number of WASM threads is set from the available cores, the graph optimization level is set to its maximum, and the batch dimension is fixed to 1.
+- **Interface** — tokens are streamed, the answer text is updated once per animation frame, and answers have a default limit of 256 new tokens.
+
+Model-level optimizations, such as fp16 activations, logits for the last position only and fused attention operators, would change the model files and require the parity and quality gates to be passed again, so they are left out of this version.
 
 The offline layer is added with `vite-plugin-pwa` (Workbox), which caches the application shell and the bundled font and makes the application installable. Model files stay in the transformers.js cache, and the application calls `navigator.storage.persist()` after the first successful load.
 
