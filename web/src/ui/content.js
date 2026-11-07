@@ -40,4 +40,5 @@ export const DEFAULT_SETTINGS = {
   repetitionPenalty: 1.1,
   maxNewTokens: 256,
   normalizeZwj: true,
+  restoreZwj: true,
 };

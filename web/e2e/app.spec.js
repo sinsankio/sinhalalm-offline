@@ -35,12 +35,15 @@ test("gate 4: greedy answers match ONNX Runtime in Python", async ({ app: { page
   await setSlider(page, "Temperature", 0);
   await setSlider(page, "Repetition penalty", 1);
   await setSlider(page, "Maximum answer length", MAX_NEW_TOKENS);
-  const normalize = page.getByRole("checkbox", { name: /zero-width joiner/ });
-  await normalize.uncheck();
+  const toggles = [
+    page.getByRole("checkbox", { name: /joiner in questions/ }),
+    page.getByRole("checkbox", { name: /joiner in answers/ }),
+  ];
+  for (const toggle of toggles) await toggle.uncheck();
   for (const { key, question, answer } of cases) {
     expect(await ask(page, question), key).toBe(answer);
   }
-  await normalize.check();
+  for (const toggle of toggles) await toggle.check();
 });
 
 test("streams an answer and stops it", async ({ app: { page } }) => {
