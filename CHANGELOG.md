@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### fix/webgpu-graph — Operators that stalled WebGPU
+
+#### Fixed
+
+- WebGPU generated only 4 to 6 tokens per second on an RTX 3060 Laptop GPU, since `IsNaN` in every layer and the bitwise unpack of the embedding ran on the CPU and forced a copy from the GPU at every token. `convert/quantize.py` now rewrites `IsNaN(x)` as `Not(Equal(x, x))` and unpacks the embedding with integer division, and records both rewrites under `portable` in the variant report.
+- `convert/package_web.py` refuses to package a model that contains `IsNaN`, `BitwiseAnd`, `BitShift` or `GatherBlockQuantized`.
+
+#### Results
+
+- A plain ONNX Runtime session in headless Chrome went from 245 ms to 53 to 57 ms per token. The rewritten model gives a maximum logit difference of 0.0 against the previous one, the same greedy answers and the same perplexity (158.014).
+
+#### Attempts
+
+- Casting the attention mask to integers around its per-layer `Slice` did not move the slice to the GPU and did not change the speed, so it was dropped.
+- Telling ONNX Runtime to prefer the high-performance or the low-power GPU, and disabling WebGPU validation, did not change the speed.
+- For WebAssembly, computing the 4-bit products with 8-bit activations (`accuracy_level` 4) was slower (3.7 s against 2.3 s per token), so it was not adopted. WebAssembly stays at 0.6 tokens per second (S12).
+
 ### feat/inference-worker — Model loading in a Web Worker
 
 #### Added

@@ -4,6 +4,8 @@ import shutil
 import sys
 from pathlib import Path
 
+import onnx
+
 from eval_quality import DEFAULT_VARIANT, VARIANTS, OnnxCausalLM
 from sinhalallm import REPO, REVISION, load_golden, store_path
 
@@ -16,6 +18,7 @@ FILES = (
     "tokenizer_config.json",
     "onnx/model_q4.onnx",
 )
+BROWSER_UNSUPPORTED = {"BitShift", "BitwiseAnd", "GatherBlockQuantized", "IsNaN"}
 NOTICE = f"""SinhalaLLM-1.7B (version 2.1) by Namindu Sanchila Nadeeshan, released under the
 Apache License 2.0: https://huggingface.co/{REPO}
 
@@ -34,6 +37,13 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def check_browser_ops(path: Path) -> None:
+    graph = onnx.load(str(path), load_external_data=False).graph
+    found = sorted({node.op_type for node in graph.node} & BROWSER_UNSUPPORTED)
+    if found:
+        raise RuntimeError(f"{path.name} contains operators the browser cannot run fast: {found}")
+
+
 def expected_greedy(variant_dir: Path) -> list[dict]:
     golden = load_golden()
     model = OnnxCausalLM(variant_dir / "onnx" / "model_q4.onnx")
@@ -47,6 +57,7 @@ def main() -> int:
     source = store_path("onnx", DEFAULT_VARIANT)
     if VARIANTS[DEFAULT_VARIANT] != f"{DEFAULT_VARIANT}/onnx/model_q4.onnx":
         raise RuntimeError(f"unexpected file layout for {DEFAULT_VARIANT}")
+    check_browser_ops(source / "onnx" / "model_q4.onnx")
     target = store_path("web", MODEL_NAME, MODEL_VERSION)
     shutil.rmtree(target, ignore_errors=True)
     (target / "onnx").mkdir(parents=True)
