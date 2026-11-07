@@ -1,0 +1,12 @@
+{
+  "name": "Offline සිංහල",
+  "short_name": "Offline සිංහල",
+  "description": "Offline Q&A in Sinhala Language, running entirely in the browser.",
+  "lang": "si",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f2f6f2",
+  "theme_color": "#287f53",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
