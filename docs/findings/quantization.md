@@ -10,7 +10,7 @@ Each variant is written as a complete transformers.js model folder in the model 
 |---|---|---|
 | fp16 | Exported directly from the PyTorch model loaded in fp16, with the same trace, validation and tie steps as the fp32 export | `model_fp16.onnx` |
 | q8 | MatMulNBits, 8 bits, block size 32, symmetric, with the output head untied into its own weight | `model_quantized.onnx` |
-| q4 | MatMulNBits, 4 bits, block size 32, symmetric, with the output head untied and the embedding lookup quantized to 4 bits (GatherBlockQuantized) | `model_q4.onnx` |
+| q4 | MatMulNBits, 4 bits, block size 32, symmetric, with the output head untied and the embedding lookup quantized to 4 bits (GatherBlockQuantized, later replaced with standard operators for the browser, see [browser-runtime.md](browser-runtime.md)) | `model_q4.onnx` |
 | q4-tied | MatMulNBits, 4 bits, block size 32, symmetric, with the default quantizer settings | `model_q4.onnx` |
 
 Two of these methods differ from the plan, since the planned tools did not fit into the available memory. ONNX Runtime's fp16 converter and its dynamic 8-bit quantizer both hold the full fp32 model and a converted copy at the same time, and both were killed at a 12 GB memory cap. The 4-bit and 8-bit block quantizer peaked at about 10.9 GB and 12.6 GB and fits under a 14 GB cap, and the fp16 export from PyTorch fits under the 11 GB cap of the export.

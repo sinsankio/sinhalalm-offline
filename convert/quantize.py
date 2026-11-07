@@ -5,8 +5,9 @@ import shutil
 import sys
 from pathlib import Path
 
+import numpy as np
 import onnx
-from onnx import numpy_helper
+from onnx import TensorProto, helper, numpy_helper
 from onnxruntime.quantization.matmul_nbits_quantizer import (
     HQQWeightOnlyQuantConfig,
     MatMulNBitsQuantizer,
@@ -92,7 +93,64 @@ def untie_head(model: onnx.ModelProto) -> list[str]:
     return [node.name for node in head_nodes]
 
 
-def quantize_nbits(target: Path, spec: dict) -> None:
+def portable_embedding(model: onnx.ModelProto) -> bool:
+    graph = model.graph
+    nodes = [node for node in graph.node if node.op_type == "GatherBlockQuantized"]
+    if not nodes:
+        return False
+    (node,) = nodes
+    block = next(a.i for a in node.attribute if a.name == "block_size")
+    data_name, ids_name, scales_name = node.input[:3]
+    data = next(t for t in graph.initializer if t.name == data_name)
+    if data.data_type != TensorProto.INT4:
+        raise ValueError(f"expected an INT4 embedding, found {data.data_type}")
+    vocab, hidden = data.dims
+    packed = np.frombuffer(data.raw_data, dtype=np.uint8).reshape(vocab, hidden // 2) ^ 0x88
+    graph.initializer.remove(data)
+
+    def name(suffix: str) -> str:
+        return f"{node.name}/{suffix}"
+
+    graph.initializer.extend(
+        [
+            numpy_helper.from_array(packed.copy(), name("packed")),
+            numpy_helper.from_array(np.array(15, np.uint8), name("low_mask")),
+            numpy_helper.from_array(np.array(4, np.uint8), name("shift")),
+            numpy_helper.from_array(np.array([-1], np.int64), name("last_axis")),
+            numpy_helper.from_array(np.array([0, 0, hidden], np.int64), name("hidden_shape")),
+            numpy_helper.from_array(
+                np.array([0, 0, hidden // block, block], np.int64), name("block_shape")
+            ),
+            numpy_helper.from_array(np.array(8.0, np.float32), name("offset")),
+        ]
+    )
+    replacement = [
+        helper.make_node("Gather", [name("packed"), ids_name], [name("rows")], axis=0),
+        helper.make_node("BitwiseAnd", [name("rows"), name("low_mask")], [name("low")]),
+        helper.make_node(
+            "BitShift", [name("rows"), name("shift")], [name("high")], direction="RIGHT"
+        ),
+        helper.make_node("Unsqueeze", [name("low"), name("last_axis")], [name("low_axis")]),
+        helper.make_node("Unsqueeze", [name("high"), name("last_axis")], [name("high_axis")]),
+        helper.make_node("Concat", [name("low_axis"), name("high_axis")], [name("pairs")], axis=-1),
+        helper.make_node("Reshape", [name("pairs"), name("block_shape")], [name("codes")]),
+        helper.make_node("Cast", [name("codes")], [name("codes_float")], to=TensorProto.FLOAT),
+        helper.make_node("Sub", [name("codes_float"), name("offset")], [name("centered")]),
+        helper.make_node("Gather", [scales_name, ids_name], [name("row_scales")], axis=0),
+        helper.make_node(
+            "Unsqueeze", [name("row_scales"), name("last_axis")], [name("row_scales_axis")]
+        ),
+        helper.make_node("Mul", [name("centered"), name("row_scales_axis")], [name("scaled")]),
+        helper.make_node("Reshape", [name("scaled"), name("hidden_shape")], [node.output[0]]),
+    ]
+    index = list(graph.node).index(node)
+    graph.node.remove(node)
+    for offset, new_node in enumerate(replacement):
+        graph.node.insert(index + offset, new_node)
+    return True
+
+
+def quantize_nbits(target: Path, spec: dict) -> bool:
     model = fp32_model()
     options = {
         "bits": spec["bits"],
@@ -124,7 +182,9 @@ def quantize_nbits(target: Path, spec: dict) -> None:
         )
     quantizer = MatMulNBitsQuantizer(model, **options)
     quantizer.process()
+    portable = portable_embedding(quantizer.model.model)
     save(quantizer.model.model, target)
+    return portable
 
 
 def op_counts(path: Path) -> dict[str, int]:
@@ -144,13 +204,14 @@ def main() -> int:
     (directory / "onnx").mkdir(parents=True)
     spec = DEFAULTS | VARIANTS[args.variant]
     target = directory / "onnx" / spec["file"]
-    quantize_nbits(target, spec)
+    portable = quantize_nbits(target, spec)
 
     write_model_folder(directory)
     files = {path.name: path.stat().st_size for path in sorted(target.parent.iterdir())}
     report = {
         "variant": args.variant,
         "settings": spec,
+        "portable_embedding": portable,
         "file": target.name,
         "bytes": sum(files.values()),
         "files": files,
