@@ -26,8 +26,8 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | 0 | Project bootstrap and toolchain checks | Done |
 | 1 | Model selection, reference outputs and configuration translation (gate 1) | Done |
 | 2 | Tokenizer parity (gate 3) and ZWJ handling | Done |
-| 3 | ONNX export (gate 2), quantization and RQ1 | In progress |
-| 4 | Browser application, offline mode and gate 4 | Planned |
+| 3 | ONNX export (gate 2), quantization and RQ1 | Done |
+| 4 | Browser application, offline mode and gate 4 | Next |
 | 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
 | 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned |
 
@@ -60,6 +60,7 @@ make convert # gate 1: verify the export toolchain (transformers 4.57.6) against
 make test-web # web unit tests, including gate 3 (tokenizer parity on 10,000 sentences)
 make onnx    # export fp32 ONNX and run gate 2 (needs about 11.5 GB of free memory)
 make quantize # build the fp16, q8 and q4 candidate variants (needs about 13 GB of free memory)
+make quality # quality gate: the default variant (q4-v0-small) against the author's Q4_K_M release
 make rq1     # RQ1: perplexity and answer agreement of every candidate (slow; needs FLORES+ access)
 make verify  # rerun golden generation and gate 1 from scratch
 make ci      # run the local CI pipeline

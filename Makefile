@@ -27,6 +27,9 @@ ONNX_FP32 := $(SINHALALM_STORE)/onnx/fp32/export.json
 GATE2_REPORT := $(SINHALALM_STORE)/onnx/fp32/gate2.json
 ONNX_FP16 := $(SINHALALM_STORE)/onnx/fp16/export.json
 QUANTIZED := $(foreach variant,q4-v0 q4-v0-small q8,$(SINHALALM_STORE)/onnx/$(variant)/quantization.json)
+DEFAULT_VARIANT := q4-v0-small
+RQ1_DIR := $(SINHALALM_STORE)/rq1
+QUALITY_GATE := $(RQ1_DIR)/quality-gate.json
 
 COMMON_INPUTS := convert/sinhalallm.py uv.lock
 GOLDEN_INPUTS := $(COMMON_INPUTS) convert/make_golden.py golden/prompts.json
@@ -35,6 +38,7 @@ GATE1_INPUTS := $(COMMON_INPUTS) convert/parity_check.py golden/reference.json
 EXPORT_INPUTS := $(COMMON_INPUTS) convert/parity_check.py convert/export_onnx.py
 GATE2_INPUTS := $(COMMON_INPUTS) convert/eval_quality.py golden/reference.json
 QUANTIZE_INPUTS := $(COMMON_INPUTS) convert/quantize.py
+RQ1_INPUTS := $(COMMON_INPUTS) convert/eval_quality.py
 
 define content_stamp
 $(STAMPS)/$(1).sha256: FORCE
@@ -49,8 +53,9 @@ $(eval $(call content_stamp,gate1,$(GATE1_INPUTS)))
 $(eval $(call content_stamp,export,$(EXPORT_INPUTS)))
 $(eval $(call content_stamp,gate2,$(GATE2_INPUTS)))
 $(eval $(call content_stamp,quantize,$(QUANTIZE_INPUTS)))
+$(eval $(call content_stamp,rq1,$(RQ1_INPUTS)))
 
-.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize rq1 verify test-web ci
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality rq1 verify test-web ci
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -99,6 +104,15 @@ $(ONNX_FP16): $(STAMPS)/export.sha256 | $(GATE1_REPORT) $(ONNX_FP32)
 $(SINHALALM_STORE)/onnx/%/quantization.json: $(ONNX_FP32) $(STAMPS)/quantize.sha256
 	$(CAPPED_PY) convert/quantize.py $*
 
+$(RQ1_DIR)/$(DEFAULT_VARIANT).json: $(SINHALALM_STORE)/onnx/$(DEFAULT_VARIANT)/quantization.json $(STAMPS)/rq1.sha256
+	$(CAPPED_PY) convert/eval_quality.py rq1 --variant $(DEFAULT_VARIANT)
+
+$(RQ1_DIR)/gguf-q4_k_m.json: $(STAMPS)/rq1.sha256
+	$(CAPPED_PY) convert/eval_quality.py reference-gguf
+
+$(QUALITY_GATE): $(RQ1_DIR)/$(DEFAULT_VARIANT).json $(RQ1_DIR)/gguf-q4_k_m.json
+	$(PY) convert/eval_quality.py quality-gate --variant $(DEFAULT_VARIANT)
+
 golden: ## Regenerate golden outputs and tokenizer cases with the reference toolchain
 	$(REF_PY) convert/make_golden.py reference
 	$(REF_PY) convert/make_golden.py tokenizer
@@ -113,6 +127,8 @@ onnx: $(GATE2_REPORT) ## Export fp32 ONNX and run gate 2 against the reference
 
 quantize: $(ONNX_FP16) $(QUANTIZED) ## Build the fp16, q8 and q4 candidate variants
 
+quality: $(QUALITY_GATE) ## Quality gate: default variant against the author's Q4_K_M release
+
 rq1: quantize ## RQ1: perplexity and answer agreement of every candidate variant (slow)
 	$(CAPPED_PY) convert/eval_quality.py rq1 --variant fp32
 	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q4-v0
@@ -126,4 +142,4 @@ verify: check-golden ## Rerun golden generation and gate 1 from scratch
 test-web: $(TOKENIZER_CORPUS) ## Run web unit tests, including gate 3
 	cd $(WEB) && $(NPM) test
 
-ci: lint convert onnx quantize test-web ## Run the local CI pipeline
+ci: lint convert onnx quantize quality test-web ## Run the local CI pipeline

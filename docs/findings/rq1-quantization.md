@@ -57,7 +57,7 @@ A single 2048 × 2048 matrix, the value projection of the first layer, accounts 
 | fp32 | 6.96 GB | 113.2 | — | — | 3.6 tokens/s |
 | q4-v0 | 1.54 GB | 150.2 | +32.7% | +30.5% | 11.4 tokens/s |
 | q4-v0-small | 1.18 GB | 158.0 | +39.6% | +37.7% | 15.0 tokens/s |
-| author's Q4_K_M (GGUF) | 1.08 GB | — | — | +51.5% | — |
+| author's Q4_K_M (GGUF) | 1.08 GB | 195.0 | +72.2% | +51.5% | — |
 
 Both candidates keep the value projection of layer 0 in fp32. q4-v0 keeps the output head tied to the fp32 embedding, while q4-v0-small also quantizes the head and the embedding to 4 bits and fits the 1.2 GB target. Both are better than the author's own 4-bit release on the same sentences. Their answers to the ten golden questions are listed next to the fp32 answers in [quantization-comparison.md](../quantization-comparison.md).
 
@@ -65,4 +65,12 @@ Both candidates keep the value projection of layer 0 in fp32. q4-v0 keeps the ou
 
 Within the 2% gate, the smallest variant is q8 at 2.48 GB, followed by fp16 at 3.68 GB. No 4-bit variant meets the gate, and the evidence points to an inherent sensitivity of this model to 4-bit weights rather than to the quantization method: the author's own mixed 4/6-bit release loses even more.
 
-The best 4-bit result comes from keeping a single, especially sensitive weight matrix in full precision, which reduces the loss from +164% to +33% at almost no cost in size. `[[NEEDS INPUT: which variant to ship by default, and the quality gate that replaces the 2% margin]]`
+The best 4-bit result comes from keeping a single, especially sensitive weight matrix in full precision, which reduces the loss from +164% to +33% at almost no cost in size.
+
+### 6. Decision
+
+On 2026-11-07, the following was decided for the shipped application:
+
+- **Default variant: q4-v0-small (1.18 GB).** It fits the 1.2 GB download target of NFR5, so the target stays unchanged.
+- **Quality gate.** The 2% margin is replaced by two conditions: the shipped variant's perplexity must not be higher than that of the author's Q4_K_M release on the same FLORES+ sentences, and its answers are reviewed by a native speaker. The first condition runs as `make quality` and is part of `make ci`. On all 1,012 sentences, q4-v0-small passes with a perplexity of 158.0 against 195.0 for Q4_K_M.
+- **q8 as an optional variant.** q8 stays within the original 2% margin, but it generates at 0.26 tokens per second on the CPU. It is offered as a higher-quality option only if the browser benchmarks in RQ2 show that it is fast enough on WebGPU.
