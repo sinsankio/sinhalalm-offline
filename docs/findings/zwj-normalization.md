@@ -41,6 +41,18 @@ The application normalizes the reader's question with rule C, implemented as `no
 
 Fewer tokens are a sign that the input matches the training data, not proof that the answers improve. Whether the normalization improves the answers is measured in RQ3 with native-speaker ratings.
 
-### 4. Open question for the output
+### 4. The output
 
-The same split affects what the model writes. Since it learned clusters such as ව්ය and ත්ය without the ZWJ, it most likely writes them without the ZWJ, as in සත්ය, which renders with a visible virama rather than as the standard conjunct. Restoring the ZWJ in the output for these clusters is a candidate step for RQ3, and it needs native-speaker evaluation before it is added, since some sequences, such as a repaya in කාර්ය, follow different rules.
+The same split suggested that the model writes clusters such as ව්ය and ත්ය without the ZWJ, as in සත්ය, which renders with a visible virama rather than as the standard conjunct. We added a display step, `restoreZwj`, which joins every yansaya and rakaransaya that is written with a visible virama, except after ර, where the ZWJ would form a repaya, as in කාර්ය. It changes only the displayed answer, can be turned off in the settings, and gate 4 turns it off, since it compares the raw answers.
+
+We then measured how often the step applies. With q4 in transformers.js, we generated greedy answers of up to 128 tokens to 25 questions: the 13 sample questions of the application and 12 questions that call for words such as අධ්‍යාපනය, විද්‍යාව, ව්‍යාපාරය, සෞඛ්‍ය and ක්‍රීඩාව.
+
+| | Count |
+|---|---|
+| Words in the answers | 1,409 |
+| Yansaya and rakaransaya with the ZWJ | 143 |
+| Yansaya and rakaransaya without the ZWJ | 0 |
+
+The joined clusters were ප්‍ර (26), ක්‍ර (21), ද්‍ය (16), ව්‍ය (15), ශ්‍ය (10), ශ්‍ර (9), ක්‍ය (8), ධ්‍ය (8), භ්‍ය (7), ද්‍ර (6), ග්‍ර (4), ත්‍ර (4), ඛ්‍ය (3), න්‍ය (2), ත්‍ය (2), ල්‍ය (1) and ෂ්‍ය (1). In other words, the model writes the ZWJ in its answers even for clusters such as ව්‍ය, which the input normalization deliberately leaves without it, since the model composes them from the ZWJ token and the following letter. The only answer without the ZWJ we found is the fp32 reference answer to the fourth golden question, which repeats ශ්රී from a question typed without the ZWJ and passed to the model unchanged.
+
+The restoration therefore acts as a safety net rather than a correction: it is on by default, since it does not change correct text, and it joins clusters that the model copies from a question typed without the ZWJ when the input normalization is turned off. The rule still needs a native-speaker check for words in which a visible virama before ය or ර is intended, which this sample did not contain.

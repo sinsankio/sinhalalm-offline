@@ -73,7 +73,7 @@ This document summarizes the research and development findings of the project in
 - **The vocabulary defines 15 ZWJ clusters.** Rakaransaya in ප්‍ර, ත්‍ර, ක්‍ර, ග්‍ර, ශ්‍ර, ද්‍ර and ඝ්‍ර, and yansaya in ධ්‍ය, ද්‍ය, ශ්‍ය, ජ්‍ය, ඛ්‍ය, භ්‍ය, ට්‍ය and ෂ්‍ය never appear without the ZWJ, while other clusters, such as ව්ය and ත්ය, appear only without it.
 - **A blanket rule is counterproductive.** Adding the ZWJ after every virama before ර or ය increased the corpus by 0.26% in tokens.
 - **Normalizing to the learned split is best.** Adding the ZWJ in the 15 clusters and removing it elsewhere reduced the corpus by 1.57%, and text typed without the ZWJ by 10.4%. The application uses this rule as `normalizeZwj`.
-- **The output may need the opposite step.** The model most likely writes clusters such as සත්ය without the ZWJ, so restoring it in the output is a candidate for RQ3.
+- **The output already carries the ZWJ.** In 25 greedy answers (1,409 words), all 143 yansaya and rakaransaya were written with the ZWJ, also in clusters such as ව්‍ය that the input normalization leaves without it. The application still joins clusters written with a visible virama in the displayed answer (`restoreZwj`), as a safety net for text copied from a question typed without the ZWJ.
 
 ### Tokenizer parity (gate 3)
 

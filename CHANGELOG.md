@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/zwj-restoration — ZWJ in displayed answers (RQ3)
+
+#### Added
+
+- `restoreZwj` in `web/src/text/zwj.js`, which joins yansaya and rakaransaya written with a visible virama in the displayed answer, except after ර, where the ZWJ would form a repaya. It is on by default and can be turned off in the settings ("Join conjuncts with the zero-width joiner in answers"). Gate 4 turns it off, since it compares the raw answers with Python.
+
+#### Results
+
+- In 25 greedy answers of q4 (1,409 words), all 143 yansaya and rakaransaya already had the ZWJ, including clusters such as ව්‍ය that the model learned without it in the vocabulary, so the restoration changed nothing. The only unjoined case found so far is a fp32 reference answer that repeats ශ්රී from a question typed without the ZWJ.
+
+#### Decisions
+
+- The restoration stays on as a safety net, since it does not change correct text. A native-speaker check for words that intentionally keep a visible virama before ය or ර is still open.
+
 ### feat/diagnostics — Diagnostics tab, q8 variant and acceptance targets
 
 #### Added
