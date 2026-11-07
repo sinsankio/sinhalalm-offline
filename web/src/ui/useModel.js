@@ -15,9 +15,18 @@ const NO_ANSWER = {
 async function estimateStorage() {
   try {
     const { usage, quota } = await navigator.storage.estimate();
-    return { usage, quota };
+    const persisted = (await navigator.storage.persisted?.()) ?? false;
+    return { usage, quota, persisted };
   } catch {
     return null;
+  }
+}
+
+async function requestPersistence() {
+  try {
+    if (!(await navigator.storage.persisted())) await navigator.storage.persist();
+  } catch {
+    return;
   }
 }
 
@@ -91,7 +100,7 @@ export default function useModel() {
           device: data.runtime.device,
           runtime: data.runtime,
         });
-        refreshStorage();
+        requestPersistence().then(refreshStorage);
       } else if (data.type === "removed") {
         setModel({ ...INITIAL, state: "download-required" });
         refreshStorage();
