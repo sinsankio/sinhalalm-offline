@@ -31,9 +31,9 @@
   --text: #17201a;
   --text-muted: #56635a;
   --border: #d4dfd5;
-  --accent: #1f6b45;
+  --accent: #287f53;
   --accent-text: #ffffff;
-  --accent-soft: #d9ebdf;
+  --accent-soft: #dcefe3;
   --notice: #f7f9e9;
   --notice-border: #cfd99a;
   --ok: #2f7d4f;
@@ -45,20 +45,35 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f1511;
     --surface: #161e19;
     --surface-muted: #1e2922;
     --text: #e4ece6;
     --text-muted: #98a89d;
     --border: #2b3830;
-    --accent: #5cc08a;
+    --accent: #6fcd98;
     --accent-text: #0f1511;
-    --accent-soft: #1d3326;
+    --accent-soft: #20392a;
     --notice: #1f2416;
     --notice-border: #4f5a28;
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f1511;
+  --surface: #161e19;
+  --surface-muted: #1e2922;
+  --text: #e4ece6;
+  --text-muted: #98a89d;
+  --border: #2b3830;
+  --accent: #6fcd98;
+  --accent-text: #0f1511;
+  --accent-soft: #20392a;
+  --notice: #1f2416;
+  --notice-border: #4f5a28;
+  color-scheme: dark;
 }
 
 * {
@@ -172,6 +187,12 @@ body {
 
 .chip:hover {
   border-color: var(--accent);
+}
+
+.chip-more {
+  background: transparent;
+  border-style: dashed;
+  color: var(--accent);
 }
 
 .actions {
@@ -329,4 +350,36 @@ a {
   .app {
     padding: 20px 16px 32px;
   }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.theme-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--surface);
+  flex: none;
+}
+
+.theme-switch button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.theme-switch button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
 }

@@ -1,4 +1,5 @@
 import { MODEL } from "../content.js";
+import ThemeSwitch from "./ThemeSwitch.jsx";
 
 export default function Header() {
   return (
@@ -12,6 +13,7 @@ export default function Header() {
           no connection once the model is downloaded.
         </p>
       </div>
+      <ThemeSwitch />
     </header>
   );
 }

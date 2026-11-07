@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/theme-toggle — Theme switch and sample questions
+
+#### Added
+
+- A theme switch in the header with Auto, Light and Dark. Auto follows the system setting, and the choice is kept in the browser's local storage.
+- Thirteen sample questions instead of four: the ten golden questions and three general questions from the model author's evaluation set. Six are shown by default, and the rest appear behind a "More examples" toggle.
+
+#### Revised
+
+- The green accent was made lighter on request: `#287f53` in the light theme and `#6fcd98` in the dark theme. Text on green buttons and green links keeps a contrast of at least 4.5:1.
+
 ### feat/ui-shell — Application shell
 
 #### Added
