@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/web-model-package — Model package for the web application
+
+#### Added
+
+- `convert/package_web.py`, which copies the default variant (q4-v0-small) into a versioned web folder in the model store, `web/sinhalallm-1.7b/v2.1/`, with the configuration, the browser tokenizer files, `onnx/model_q4.onnx`, an attribution notice and a `manifest.json` with the size and SHA-256 hash of every file. It also records the greedy answers of the packaged file in ONNX Runtime for the ten golden questions.
+- `web/tests/package-parity.test.js`, which loads the package with transformers.js in Node.js and requires the same greedy answers as ONNX Runtime in Python. It is skipped in the regular unit tests and runs through `make check-package`.
+- `make package`, `make link-models` and `make check-package`. The package is linked into `web/public/models/` rather than copied, since the internal disk has too little space for a second copy, and `make ci` now runs the parity check when its inputs change.
+
+#### Results
+
+- The package is 1.189 GB, and transformers.js 4.3.1 reproduced the Python greedy answers on all ten golden questions.
+
 ### docs/phase4-plan — Browser application plan
 
 #### Decisions
