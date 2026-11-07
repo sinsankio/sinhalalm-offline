@@ -83,6 +83,8 @@ make preview # production build on http://localhost:4173
 
 Offline mode needs the production build (`make preview`), since the development server does not register the service worker. On the first visit, the application asks before it downloads the model (1.19 GB). The model is then kept in the browser's Cache Storage and loaded from there on later visits. The storage panel shows how much space the site uses and can delete the downloaded model, for example when the disk is nearly full.
 
+The Diagnostics tab shows the runtime, memory and storage, switches between the 4-bit model (1.19 GB, the default) and the more accurate 8-bit model (2.48 GB, practical only on WebGPU), runs a short benchmark and keeps a session log in the browser.
+
 The application uses WebGPU when the browser offers it on a real GPU, and the processor (WebAssembly) otherwise, which is much slower. Chrome on Linux does not enable WebGPU by default. To use the GPU there, quit Chrome completely and start it with a separate profile:
 
 ```bash

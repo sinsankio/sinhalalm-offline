@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/diagnostics — Diagnostics tab, q8 variant and acceptance targets
+
+#### Added
+
+- A Diagnostics tab next to Ask, with the runtime details (variant, backend, GPU adapter, threads, isolation, load and warm-up times), memory (page memory measured by the browser, the JavaScript heap and their peaks, storage use, quota and persistence), switching between variants and backends, a benchmark of five sample questions with greedy decoding, and a session log.
+- The session log is kept in IndexedDB in the browser. It records loads, answers and benchmark runs with their timings, but not the questions, and can be exported as JSON or cleared.
+- The 8-bit variant (q8, 2.48 GB) as an optional download, after its own quality gate on all 1,012 FLORES+ sentences (perplexity 115.5, against 195.0 for Q4_K_M). Each variant can be downloaded, loaded and deleted separately, and the chosen variant is remembered.
+- `make quality` now runs the quality gate for q4 and q8, and `make package` packages both.
+
+#### Fixed
+
+- Page memory was 2.67 GB with q4 on either backend, since ONNX Runtime keeps a copy of weights stored inside the graph file (S14). Both variants now store their weights in separate data files, which reduced page memory to 0.09 GB on WebGPU and 1.78 GB on WebAssembly.
+- The q8 weights in one 2.48 GB file never finished loading, so they are split into two files of 1.24 GB (S15).
+- Chrome did not cache the 1.18 GB weight file when transformers.js stored it from memory, so the model was downloaded on every visit (S16). The worker now streams the model files into Cache Storage itself.
+- When the disk is nearly full, a download fails before the reported quota (S17). The application now removes the partial download and explains the cause instead of a network error.
+- Probing the cache created an empty cache, so a deleted model left an empty cache behind.
+
+#### Results
+
+- On WebGPU (RTX 3060 Laptop GPU), q4 reached a median of 26.5 tokens per second with the first token after 69 ms, and q8 26.6 tokens per second after 76 ms. A 52-token question got its first token after 484 ms.
+- Warm loads took 4.4 s on WebGPU and 6.9 s on WebAssembly, against a target of 10 s.
+- On WebAssembly, the first token of the 52-token question took 5.2 s, above the 3 s target, and the renderer process used 2.35 GB, while the browser measured 1.78 GB of page memory. All values are in [browser-runtime.md](docs/findings/browser-runtime.md#13-acceptance-targets).
+
+#### Attempts
+
+- A first measurement of q8 in a single 2.48 GB file looked like a crash. Logging the progress showed that the data file never started to download in the browser, which led to S15.
+- Two full RQ1 runs of q8 (about an hour each) were lost: the first failed on division by zero when no golden questions were requested, and the second on printing the missing agreement report, after which `make` deleted the finished report. A five-sentence run now checks the full path first.
+- The first q8 download in the browser failed after 2.15 GB. Repeating it with the browser profile in memory showed that the disk, not the size, was the cause (S17).
+
 ### feat/browser-e2e — Browser tests and gate 4
 
 #### Added

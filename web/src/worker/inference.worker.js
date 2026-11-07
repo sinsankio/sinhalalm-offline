@@ -10,6 +10,7 @@ import { buildMessages, generationOptions, generationStats, stopReason } from ".
 import { describeAdapter, gpuSupport, wasmThreads, webgpuUnavailableMessage } from "./runtime.js";
 import { createStopSignal } from "./stop-signal.js";
 import {
+  COMMON_FILES,
   DEFAULT_VARIANT,
   MODEL_ID,
   VARIANTS,
@@ -66,12 +67,67 @@ async function cachedVariants() {
   return cached;
 }
 
-let downloads = {};
+function countingResponse(response, onBytes) {
+  let loaded = 0;
+  const counter = new TransformStream({
+    transform(chunk, controller) {
+      loaded += chunk.byteLength;
+      onBytes(loaded);
+      controller.enqueue(chunk);
+    },
+  });
+  return new Response(response.body.pipeThrough(counter), {
+    status: response.status,
+    headers: response.headers,
+  });
+}
 
-function onProgress(event) {
-  if (event.status !== "progress" || !/\.onnx(_data)?$/.test(event.file ?? "")) return;
-  downloads[event.file] = { loaded: event.loaded, total: event.total };
-  post("progress", combinedProgress(downloads));
+async function download(dtype) {
+  const cache = await caches.open(env.cacheKey);
+  const common = COMMON_FILES.map(
+    (file) => new URL(`/models/${MODEL_ID}/${file}`, self.location.origin).href,
+  );
+  const urls = [...common, ...variantFileUrls(dtype, self.location.origin)];
+  const missing = [];
+  for (const url of urls) if (!(await cache.match(url))) missing.push(url);
+  const files = {};
+  for (const url of missing) {
+    const head = await fetch(url, { method: "HEAD" });
+    files[url] = { loaded: 0, total: Number(head.headers.get("content-length")) || null };
+  }
+  const needed = Object.values(files).reduce((sum, file) => sum + (file.total ?? 0), 0);
+  const { usage = 0, quota = Infinity } = (await self.navigator.storage?.estimate?.()) ?? {};
+  if (quota - usage < needed) throw new Error(storageMessage(needed, quota - usage));
+  try {
+    for (const url of missing) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Could not download ${url.split("/").pop()} (${response.status}).`);
+      }
+      await cache.put(
+        url,
+        countingResponse(response, (loaded) => {
+          files[url].loaded = loaded;
+          post("progress", combinedProgress(files));
+        }),
+      );
+    }
+  } catch (error) {
+    await Promise.all(missing.map((url) => cache.delete(url)));
+    if ((await cache.keys()).length === 0) await caches.delete(env.cacheKey);
+    if (error?.name === "QuotaExceededError" || /Cache\.put/.test(error?.message ?? "")) {
+      throw new Error(storageMessage(needed), { cause: error });
+    }
+    throw error;
+  }
+}
+
+function storageMessage(needed, available) {
+  const size = `${(needed / 1e9).toFixed(2)} GB`;
+  const room = Number.isFinite(available)
+    ? ` The browser allows ${(Math.max(available, 0) / 1e9).toFixed(2)} GB more.`
+    : "";
+  return `The model (${size}) could not be stored on this device.${room} Free some disk space or delete the other model variant, then try again.`;
 }
 
 async function warmUp() {
@@ -90,8 +146,8 @@ async function load({ preferred = "auto", dtype = DEFAULT_VARIANT } = {}) {
   const { device, adapter, gpu } = await chooseDevice(preferred);
   const threads = wasmThreads(self.navigator.hardwareConcurrency, self.crossOriginIsolated);
   env.backends.onnx.wasm.numThreads = threads;
-  downloads = {};
   post("status", { state: "loading", device, dtype, fromCache });
+  if (!fromCache) await download(dtype);
 
   tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
   model = await AutoModelForCausalLM.from_pretrained(MODEL_ID, {
@@ -102,7 +158,6 @@ async function load({ preferred = "auto", dtype = DEFAULT_VARIANT } = {}) {
       graphOptimizationLevel: "all",
       freeDimensionOverrides: { batch_size: 1 },
     },
-    progress_callback: onProgress,
   });
   const loadedAt = performance.now();
   post("status", { state: "warming", device, dtype });

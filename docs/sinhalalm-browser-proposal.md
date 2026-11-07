@@ -80,6 +80,10 @@ Before designing the system, we inspected the configuration files, the tokenizer
 | S11 | Two operators stall WebGPU at every token. | The exported attention uses `IsNaN` after each softmax, and the portable embedding used `BitwiseAnd` and `BitShift`. The WebGPU backend runs neither, so ONNX Runtime copied data to the CPU and back 25 times per token, and a plain session reached 4.1 tokens per second on an RTX 3060 Laptop GPU. | Both are rewritten into operators with identical results that run on the GPU, which raises the speed to about 18 tokens per second, and the packaging step rejects these operators. |
 | S12 | The WebAssembly backend has no fast kernel for 4-bit matrix products. | Without a GPU, 94% of the time goes to `MatMulNBits`, and the model generates 0.6 tokens per second with seven threads, against a target of 5. | WebAssembly is kept as a slow fallback for browsers without hardware WebGPU, without a speed target. The application says when it runs on the processor (S13), and RQ2 reports the measured speed. |
 | S13 | Chrome on Linux does not offer hardware WebGPU by default. | Chrome 154 on Linux offered no WebGPU adapter, or only the SwiftShader software adapter with `--enable-unsafe-webgpu`. With Vulkan enabled through `--enable-features=Vulkan --use-angle=vulkan`, it found the NVIDIA GPU. | The application explains why it runs on the processor and shows the Chrome flags on Linux, with a separate profile. |
+| S14 | Weights inside the graph file double the memory. | ONNX Runtime keeps a copy of the weights in its WebAssembly heap, which never shrinks: 2.67 GB of page memory for q4 on either backend. | The weights are packaged in a separate data file, which cuts page memory to 0.06 GB on WebGPU and 1.88 GB on WebAssembly. |
+| S15 | A 2.48 GB data file never finishes loading. | transformers.js loaded the q8 graph file, but its single data file never reported progress. | q8 is packaged as two data files of 1.24 GB, which load in 13 s. |
+| S16 | Chrome cannot cache a 1.18 GB file from memory. | `Cache.put` failed for the data file when transformers.js stored it from its buffer, so the model was downloaded on every visit. | The worker streams the model files into Cache Storage before loading them. |
+| S17 | A nearly full disk stops downloads early. | With 6 GB free, Chrome reported an 11.9 GB quota but refused to store q8 after 2.15 GB. | The application checks the quota, removes partial downloads and explains that the disk may be too full. |
 
 In other words, the inspection changes the project from "port a custom model and its tokenizer" into "load a standard model correctly and keep Sinhala text intact". This is because S4 removes the tokenizer port, while S1, S2 and S9 move the risk into configuration, file layout and text handling, which is where a Sinhala-specific system is most likely to fail silently.
 
@@ -458,6 +462,8 @@ The application is ready for release when all parity gates pass, the selected va
 | Warm load time | at most 10 s |
 | Time to first token (about 60 prompt tokens) | at most 1 s on WebGPU and 3 s on multi-threaded WASM |
 | Generation speed | at least 20 tokens/s on WebGPU; multi-threaded WASM is a slow fallback without a speed target (S12) |
+
+The measured values are listed in [browser-runtime.md](findings/browser-runtime.md#13-acceptance-targets): all targets are met on WebGPU, while on WASM the first token of a 52-token question takes 5.2 s.
 
 ---
 

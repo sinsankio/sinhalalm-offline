@@ -1,5 +1,11 @@
 export const MODEL_ID = "sinhalallm-1.7b/v2.1";
 export const DEFAULT_VARIANT = "q4";
+export const COMMON_FILES = [
+  "config.json",
+  "generation_config.json",
+  "tokenizer.json",
+  "tokenizer_config.json",
+];
 
 export const VARIANTS = Object.freeze({
   q4: {
