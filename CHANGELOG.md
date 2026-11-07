@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/browser-e2e — Browser tests and gate 4
+
+#### Added
+
+- A Playwright suite in `web/e2e/`, which builds the application, serves the production build and runs it in Chrome with a temporary browser profile. It covers the download with progress, gate 4, streaming and stopping an answer, a question longer than the context, settings and the model after a reload, answering offline, and deleting the model while offline.
+- Gate 4 compares the greedy answers of the browser (WASM backend) with ONNX Runtime in Python on the ten golden questions, over the first 32 generated tokens.
+- `make e2e`, which runs the suite only when the web code, the tests or the model package change, and is part of `make ci`. The temporary profile, with its copy of the model, is deleted after the run, also when a test fails.
+- `@playwright/test` 1.56.1, using the installed Chrome instead of a downloaded browser.
+
+#### Results
+
+- All seven tests passed in 8.3 minutes, of which gate 4 took 7.2 minutes, and all ten answers matched.
+
+#### Attempts
+
+- In the first run, gate 4 failed on the fourth golden question. The question is typed without the ZWJ, which the application normalizes before encoding, while the Python reference used the question as typed. Gate 4 now turns the normalization off, since it compares the two runtimes on the same prompt, and the normalization itself is covered by the unit tests.
+
 ### docs/native-review — Quality gate review
 
 #### Decisions
