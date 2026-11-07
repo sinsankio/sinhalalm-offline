@@ -1,5 +1,14 @@
-import { AutoModelForCausalLM, AutoTokenizer, env } from "@huggingface/transformers";
+import {
+  AutoModelForCausalLM,
+  AutoTokenizer,
+  InterruptableStoppingCriteria,
+  TextStreamer,
+  env,
+} from "@huggingface/transformers";
+import { createEntityDecoder, decodeEntities } from "../text/entities.js";
+import { buildMessages, generationOptions, generationStats, stopReason } from "./generation.js";
 import { describeAdapter, isSoftwareAdapter, wasmThreads } from "./runtime.js";
+import { createStopSignal } from "./stop-signal.js";
 
 const MODEL_ID = "sinhalallm-1.7b/v2.1";
 const MODEL_FILE = `/models/${MODEL_ID}/onnx/model_q4.onnx`;
@@ -16,6 +25,14 @@ env.backends.onnx.wasm.wasmPaths = {
 let tokenizer = null;
 let model = null;
 let runtime = null;
+let generating = false;
+let stopSignal = createStopSignal(null);
+
+class StopOnSignal extends InterruptableStoppingCriteria {
+  _call(inputIds) {
+    return new Array(inputIds.length).fill(stopSignal.requested);
+  }
+}
 
 const post = (type, payload = {}) => self.postMessage({ type, ...payload });
 
@@ -103,6 +120,73 @@ async function load({ preferred = "auto" } = {}) {
   post("ready", { runtime });
 }
 
+function eosIds() {
+  const ids = model.generation_config?.eos_token_id ?? [];
+  return (Array.isArray(ids) ? ids : [ids]).map(Number);
+}
+
+async function generate({ id, question, settings }) {
+  if (!model) throw new Error("The model is not loaded.");
+  if (generating) throw new Error("An answer is already being generated.");
+  generating = true;
+  try {
+    const inputs = tokenizer.apply_chat_template(buildMessages(question, settings), {
+      add_generation_prompt: true,
+      return_dict: true,
+    });
+    const promptTokens = inputs.input_ids.dims.at(-1);
+    const options = generationOptions(settings, promptTokens);
+    const decoder = createEntityDecoder();
+    const startedMs = performance.now();
+    let firstTokenMs = null;
+    let newTokens = 0;
+    const streamer = new TextStreamer(tokenizer, {
+      skip_prompt: true,
+      skip_special_tokens: true,
+      token_callback_function: () => {
+        newTokens += 1;
+        firstTokenMs ??= performance.now();
+      },
+      callback_function: (text) => {
+        const chunk = decoder.push(text);
+        if (chunk) post("chunk", { id, text: chunk });
+      },
+    });
+
+    stopSignal.reset();
+    post("generating", { id, promptTokens, maxNewTokens: options.max_new_tokens });
+    const sequences = await model.generate({
+      ...inputs,
+      ...options,
+      streamer,
+      stopping_criteria: [new StopOnSignal()],
+    });
+    const endedMs = performance.now();
+    const rest = decoder.flush();
+    if (rest) post("chunk", { id, text: rest });
+
+    const answerIds = sequences.slice(null, [promptTokens, null]);
+    const text = decodeEntities(
+      tokenizer.batch_decode(answerIds, { skip_special_tokens: true })[0],
+    ).trim();
+    const lastToken = sequences.data.at(-1);
+    post("answer", {
+      id,
+      text,
+      reason: stopReason({
+        interrupted: stopSignal.requested,
+        lastToken,
+        eosIds: eosIds(),
+        newTokens,
+        maxNewTokens: options.max_new_tokens,
+      }),
+      stats: generationStats({ promptTokens, newTokens, startedMs, firstTokenMs, endedMs }),
+    });
+  } finally {
+    generating = false;
+  }
+}
+
 async function unload() {
   if (model) {
     await model.dispose();
@@ -121,11 +205,16 @@ async function removeDownloaded() {
 
 self.addEventListener("message", async ({ data }) => {
   try {
-    if (data.type === "probe") post("probe", { fromCache: await isCached() });
+    if (data.type === "init") stopSignal = createStopSignal(data.stopBuffer ?? null);
+    else if (data.type === "probe") post("probe", { fromCache: await isCached() });
+    else if (data.type === "generate") await generate(data);
+    else if (data.type === "stop") stopSignal.request();
     else if (data.type === "load") await load(data);
     else if (data.type === "unload") await unload();
     else if (data.type === "remove") await removeDownloaded();
   } catch (error) {
-    post("error", { message: error?.message ?? String(error) });
+    const message = error?.message ?? String(error);
+    if (data.type === "generate") post("answer-error", { id: data.id, message });
+    else post("error", { message });
   }
 });
