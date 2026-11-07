@@ -82,7 +82,7 @@ export default function App() {
               onAsk={(text) => ask(text, settings)}
               onStop={stop}
             />
-            <AnswerPanel answer={answer} />
+            <AnswerPanel answer={answer} joinConjuncts={settings.restoreZwj} />
             <Notice />
           </section>
           <aside className="column column-side">

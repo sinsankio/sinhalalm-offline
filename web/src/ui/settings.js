@@ -2,6 +2,8 @@ import { DEFAULT_SETTINGS } from "./content.js";
 
 const STORAGE_KEY = "sinhalallm-settings";
 
+export const TOGGLES = ["normalizeZwj", "restoreZwj"];
+
 export const SLIDERS = [
   { key: "temperature", label: "Temperature", min: 0, max: 1.5, step: 0.05 },
   { key: "topK", label: "Top-k", min: 1, max: 100, step: 1 },
@@ -18,7 +20,9 @@ export function sanitizeSettings(value) {
       settings[key] = Math.min(max, Math.max(min, number));
     }
   }
-  if (typeof value.normalizeZwj === "boolean") settings.normalizeZwj = value.normalizeZwj;
+  for (const key of TOGGLES) {
+    if (typeof value[key] === "boolean") settings[key] = value[key];
+  }
   return settings;
 }
 

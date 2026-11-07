@@ -31,6 +31,14 @@ export default function SettingsPanel({ settings, onChange }) {
         />
         <span>Normalize the zero-width joiner in questions</span>
       </label>
+      <label className="setting toggle">
+        <input
+          type="checkbox"
+          checked={settings.restoreZwj}
+          onChange={(event) => update("restoreZwj", event.target.checked)}
+        />
+        <span>Join conjuncts with the zero-width joiner in answers</span>
+      </label>
       <div className="settings-actions">
         <button
           type="button"

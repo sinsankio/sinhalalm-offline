@@ -1,3 +1,5 @@
+import { restoreZwj } from "../../text/zwj.js";
+
 const REASONS = {
   length: "Stopped at the maximum answer length.",
   user: "Stopped.",
@@ -11,9 +13,10 @@ function Stats({ stats }) {
   return <p className="answer-stats">{parts.join(" · ")}</p>;
 }
 
-export default function AnswerPanel({ answer }) {
+export default function AnswerPanel({ answer, joinConjuncts }) {
   const { question, text, streaming, reason, stats, error } = answer;
-  const shown = text.trimStart();
+  const trimmed = text.trimStart();
+  const shown = joinConjuncts ? restoreZwj(trimmed) : trimmed;
 
   return (
     <section className="panel answer" aria-live="polite" aria-busy={streaming}>

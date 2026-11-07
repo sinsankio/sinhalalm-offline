@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { AutoTokenizer, env } from "@huggingface/transformers";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createEntityDecoder, decodeEntities } from "../src/text/entities.js";
-import { ZWJ_CLUSTERS, normalizeZwj } from "../src/text/zwj.js";
+import { ZWJ_CLUSTERS, normalizeZwj, restoreZwj } from "../src/text/zwj.js";
 
 const ZWJ = "‍";
 const goldenPath = (path) => fileURLToPath(new URL(`../../golden/${path}`, import.meta.url));
@@ -68,6 +68,31 @@ describe("normalizeZwj", () => {
     const repaired = normalizeZwj(edgeCases.missing_zwj.text);
     expect(repaired).toBe(edgeCases.zwj_conjuncts.text);
     expect(encode(repaired)).toEqual(edgeCases.zwj_conjuncts.ids);
+  });
+});
+
+describe("restoreZwj", () => {
+  const ZWJ = "\u200d";
+
+  it("joins yansaya and rakaransaya that the model wrote without the ZWJ", () => {
+    expect(restoreZwj("සත්ය")).toBe(`සත්${ZWJ}ය`);
+    expect(restoreZwj("ශ්රී ලංකාව")).toBe(`ශ්${ZWJ}රී ලංකාව`);
+    expect(restoreZwj("ව්යාපාරය")).toBe(`ව්${ZWJ}යාපාරය`);
+  });
+
+  it("keeps clusters that already have the ZWJ", () => {
+    expect(restoreZwj(`ප්${ZWJ}රශ්නය`)).toBe(`ප්${ZWJ}රශ්නය`);
+  });
+
+  it("leaves repaya and other virama sequences unchanged", () => {
+    expect(restoreZwj("සූර්යයා")).toBe("සූර්යයා");
+    expect(restoreZwj("ප්‍රශ්නය කුමක්ද")).toBe("ප්‍රශ්නය කුමක්ද");
+    expect(restoreZwj("අක්ෂර")).toBe("අක්ෂර");
+  });
+
+  it("is idempotent", () => {
+    const once = restoreZwj("සත්ය හා ශ්රී");
+    expect(restoreZwj(once)).toBe(once);
   });
 });
 

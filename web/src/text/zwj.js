@@ -27,3 +27,9 @@ export function normalizeZwj(text) {
     JOINED.has(base + next) ? base + VIRAMA + ZWJ : base + VIRAMA,
   );
 }
+
+const UNJOINED = /([ක-ෆ])්(?=[යර])/g;
+
+export function restoreZwj(text) {
+  return text.replace(UNJOINED, (match, base) => (base === "ර" ? match : base + VIRAMA + ZWJ));
+}
