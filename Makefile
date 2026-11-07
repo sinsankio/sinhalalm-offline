@@ -68,7 +68,7 @@ $(eval $(call content_stamp,package,$(PACKAGE_INPUTS)))
 $(eval $(call content_stamp,parity,$(PARITY_INPUTS)))
 $(eval $(call content_stamp,e2e,$(E2E_INPUTS)))
 
-.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify dev preview test-web e2e ci
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify dev preview test-web e2e ci deploy
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -85,15 +85,15 @@ setup-web:
 lint: lint-python lint-web ## Run all linters and format checks
 
 lint-python:
-	$(UV) run ruff check convert
-	$(UV) run ruff format --check convert
+	$(UV) run ruff check convert deploy
+	$(UV) run ruff format --check convert deploy
 
 lint-web:
 	cd $(WEB) && $(NPM) run lint
 
 format: ## Apply formatters to Python and web sources
-	$(UV) run ruff format convert
-	$(UV) run ruff check --fix convert
+	$(UV) run ruff format convert deploy
+	$(UV) run ruff check --fix convert deploy
 	cd $(WEB) && $(NPM) run format
 
 $(GOLDEN_LOGITS): $(STAMPS)/golden.sha256
@@ -189,3 +189,8 @@ test-web: $(TOKENIZER_CORPUS) ## Run web unit tests, including gate 3
 e2e: $(E2E_OK) ## Browser tests: gate 4, offline mode and the main flows (downloads the model into a temporary profile)
 
 ci: lint convert onnx quantize quality check-package test-web e2e ## Run the local CI pipeline
+
+deploy: ci ## Deploy the tagged release to the Hugging Face Space (needs a write token)
+	@git describe --exact-match --tags HEAD >/dev/null 2>&1 || { echo "deploy needs a version tag on HEAD"; exit 1; }
+	cd $(WEB) && $(NPM) run build
+	$(PY) deploy/deploy_space.py
