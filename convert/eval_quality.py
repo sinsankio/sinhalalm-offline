@@ -162,7 +162,9 @@ def perplexity(model: OnnxCausalLM, sentences: list[str]) -> dict:
     }
 
 
-def agreement(model: OnnxCausalLM, questions: int) -> dict:
+def agreement(model: OnnxCausalLM, questions: int) -> dict | None:
+    if questions == 0:
+        return None
     golden = load_golden()
     expected = np.load(store_path("golden", "reference_logits.npz"))
     cases = golden["cases"][:questions]
@@ -267,11 +269,13 @@ def run_rq1(args: argparse.Namespace) -> int:
     output.mkdir(parents=True, exist_ok=True)
     (output / f"{args.variant}.json").write_text(json.dumps(report, indent=2) + "\n")
     ppl, agree = report["perplexity"], report["agreement"]
-    print(
-        f"rq1 {args.variant}: ppl={ppl['perplexity']:.3f} bpc={ppl['bits_per_character']:.4f} "
-        f"top1={agree['prompt_top1_agreement']:.3f} "
-        f"greedy={agree['greedy_exact_matches']}/{agree['questions']}"
-    )
+    summary = f"rq1 {args.variant}: ppl={ppl['perplexity']:.3f} bpc={ppl['bits_per_character']:.4f}"
+    if agree:
+        summary += (
+            f" top1={agree['prompt_top1_agreement']:.3f}"
+            f" greedy={agree['greedy_exact_matches']}/{agree['questions']}"
+        )
+    print(summary)
     return 0
 
 
@@ -293,7 +297,12 @@ def main() -> int:
         return 0
     if args.target == "quality-gate":
         report = quality_gate(args.variant)
-        store_path("rq1", "quality-gate.json").write_text(json.dumps(report, indent=2) + "\n")
+        name = (
+            "quality-gate.json"
+            if args.variant == DEFAULT_VARIANT
+            else f"quality-gate-{args.variant}.json"
+        )
+        store_path("rq1", name).write_text(json.dumps(report, indent=2) + "\n")
         status = "PASS" if report["passed"] else "FAIL"
         print(
             f"quality gate {report['variant']}: {status} ppl={report['perplexity']:.3f} "
