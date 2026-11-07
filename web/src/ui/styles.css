@@ -481,6 +481,10 @@ a {
   font-size: 0.95rem;
 }
 
+.settings-actions {
+  margin: 12px 0 4px;
+}
+
 .secondary,
 .danger {
   border-radius: 10px;

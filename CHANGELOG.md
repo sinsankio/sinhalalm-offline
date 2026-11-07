@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/settings — Saved generation settings
+
+#### Added
+
+- The generation settings are saved in the browser's local storage and restored on the next visit. Stored values are checked when they are read: values outside a slider's range are clamped, and values of the wrong type fall back to the defaults.
+- A "Reset to defaults" button, which is disabled while the defaults are in use.
+- `web/src/ui/settings.js` holds the slider ranges, and `web/tests/settings.test.js` checks how stored values are read.
+
+#### Decisions
+
+- The model variant selector of the plan moves to the Diagnostics tab, together with the q8 variant, since only one variant is packaged so far.
+
 ### docs/wasm-fallback — WebAssembly as a slow fallback
 
 #### Decisions
