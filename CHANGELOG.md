@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/wasm-fallback — WebAssembly as a slow fallback
+
+#### Decisions
+
+- WebAssembly is kept as a slow fallback for browsers without hardware WebGPU, and its speed target of 5 tokens per second is dropped. It reached 0.6 tokens per second (S12), and a faster path would need a second, 8-bit model of about 1.8 GB. WebGPU met its targets in manual testing, and the time-to-first-token target for WebAssembly (3 s) stays.
+
 ### feat/qa-mode — Questions and streamed answers
 
 #### Added
