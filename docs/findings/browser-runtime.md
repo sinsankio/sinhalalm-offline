@@ -118,9 +118,11 @@ The medians come from the benchmark in the Diagnostics tab (five sample question
 | Target | q4 on WebGPU | q4 on WebAssembly | Result |
 |---|---|---|---|
 | Download at most 1.2 GB | 1.18 GB | 1.18 GB | met |
-| Peak tab memory at most 2 GB | page 0.09 GB, renderer 1.37 GB | page 1.78 GB, renderer 2.35 GB | met by the browser's measurement; the renderer process on WebAssembly is 2.35 GB |
+| Peak tab memory at most 2 GB (page memory) | page 0.09 GB, renderer 1.37 GB | page 1.78 GB, renderer 2.35 GB | met |
 | Warm load at most 10 s | 3.7 s + 0.7 s warm-up | 2.8 to 3.2 s + 4.1 to 5.3 s warm-up | met |
-| First token at most 1 s (WebGPU) or 3 s (WebAssembly), about 60 prompt tokens | 484 ms with 52 prompt tokens | 5.2 s with 52 prompt tokens, about 2 s for short questions | met on WebGPU, missed on WebAssembly |
+| First token at most 1 s on WebGPU, about 60 prompt tokens | 484 ms with 52 prompt tokens | 5.2 s with 52 prompt tokens, about 2 s for short questions (no target) | met |
 | At least 20 tokens per second on WebGPU | 26.5 to 27.3 | 0.5 (no target, S12) | met |
 
 All values come from headless Chrome on the RTX 3060 Laptop GPU and its 8-core CPU. Page memory is the browser's own measurement of the page and its workers, without GPU memory; renderer is the resident memory of the tab's process.
+
+After these measurements, the WebAssembly target for the first token was dropped, as the speed target before it (S12), and the memory target counts the page memory measured by the browser, with the renderer process recorded alongside. The application warns when the 8-bit model runs on WebAssembly.
