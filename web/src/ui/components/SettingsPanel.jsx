@@ -1,9 +1,5 @@
-const SLIDERS = [
-  { key: "temperature", label: "Temperature", min: 0, max: 1.5, step: 0.05 },
-  { key: "topK", label: "Top-k", min: 1, max: 100, step: 1 },
-  { key: "repetitionPenalty", label: "Repetition penalty", min: 1, max: 1.5, step: 0.01 },
-  { key: "maxNewTokens", label: "Maximum answer length (tokens)", min: 32, max: 512, step: 16 },
-];
+import { DEFAULT_SETTINGS } from "../content.js";
+import { SLIDERS, isDefault } from "../settings.js";
 
 export default function SettingsPanel({ settings, onChange }) {
   const update = (key, value) => onChange({ ...settings, [key]: value });
@@ -35,6 +31,16 @@ export default function SettingsPanel({ settings, onChange }) {
         />
         <span>Normalize the zero-width joiner in questions</span>
       </label>
+      <div className="settings-actions">
+        <button
+          type="button"
+          className="secondary"
+          disabled={isDefault(settings)}
+          onClick={() => onChange({ ...DEFAULT_SETTINGS })}
+        >
+          Reset to defaults
+        </button>
+      </div>
       <p className="hint">
         Settings apply to the next question. A temperature of 0 always picks the most likely word.
       </p>

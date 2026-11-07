@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AnswerPanel from "./components/AnswerPanel.jsx";
 import AskPanel from "./components/AskPanel.jsx";
 import Credits from "./components/Credits.jsx";
@@ -7,14 +7,16 @@ import Notice from "./components/Notice.jsx";
 import SettingsPanel from "./components/SettingsPanel.jsx";
 import StatusBar from "./components/StatusBar.jsx";
 import StorageControl from "./components/StorageControl.jsx";
-import { DEFAULT_SETTINGS } from "./content.js";
+import { readSettings, saveSettings } from "./settings.js";
 import useModel from "./useModel.js";
 
 export default function App() {
   const [question, setQuestion] = useState("");
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(readSettings);
   const { model, storage, answer, load, remove, ask, stop } = useModel();
   const ready = model.state === "ready";
+
+  useEffect(() => saveSettings(settings), [settings]);
 
   return (
     <div className="app">
