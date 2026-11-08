@@ -1,6 +1,7 @@
 import { VARIANTS } from "../../worker/variants.js";
 import useOnline from "../useOnline.js";
 import GpuHint from "./GpuHint.jsx";
+import ModelImport from "./ModelImport.jsx";
 import VariantPicker from "./VariantPicker.jsx";
 
 const BACKENDS = [
@@ -18,6 +19,9 @@ function describe(model) {
     return `The model (${VARIANTS[model.dtype].downloadGb} GB) is not on this device yet.`;
   if (state === "loading") {
     if (model.fromCache) return "Loading the model from this device…";
+    if (model.importing && progress?.total)
+      return `Copying the model from your files: ${megabytes(progress.loaded)} of ${megabytes(progress.total)}`;
+    if (model.importing) return "Checking the selected files…";
     if (progress?.total)
       return `Downloading the model: ${megabytes(progress.loaded)} of ${megabytes(progress.total)}`;
     return "Downloading the model…";
@@ -35,7 +39,7 @@ function describe(model) {
   return "The model is not loaded.";
 }
 
-export default function StatusBar({ model, locked, onLoad, onSelect }) {
+export default function StatusBar({ model, locked, onLoad, onImport, onSelect }) {
   const { state, runtime, progress, error } = model;
   const online = useOnline();
   const busy = state === "checking" || state === "loading" || state === "warming";
@@ -90,6 +94,7 @@ export default function StatusBar({ model, locked, onLoad, onSelect }) {
               without a connection.
             </p>
           )}
+          {onImport && <ModelImport onImport={onImport} />}
         </>
       )}
       {state === "error" && (
@@ -98,12 +103,15 @@ export default function StatusBar({ model, locked, onLoad, onSelect }) {
           <button type="button" className="primary status-action" onClick={() => onLoad("auto")}>
             Try again
           </button>
+          {onImport && !model.cached?.[model.dtype] && <ModelImport onImport={onImport} />}
         </>
       )}
       {state === "ready" && (
         <dl className="status-facts">
           <dt>Loaded from</dt>
-          <dd>{runtime.fromCache ? "this device" : "the network"}</dd>
+          <dd>
+            {runtime.fromCache ? "this device" : runtime.imported ? "your files" : "the network"}
+          </dd>
           <dt>Load time</dt>
           <dd>{(runtime.loadMs / 1000).toFixed(1)} s</dd>
           <dt>Warm-up</dt>
