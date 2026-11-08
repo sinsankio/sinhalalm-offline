@@ -30,7 +30,7 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | 2 | Tokenizer parity (gate 3) and ZWJ handling | Done |
 | 3 | ONNX export (gate 2), quantization and RQ1 | Done |
 | 4 | Browser application, offline mode, gate 4, Diagnostics tab and acceptance targets | Done |
-| 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Live; all browser tests pass on the Space, awaiting acceptance |
+| 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Done |
 | 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned; the ZWJ in the output is measured |
 
 Research results are summarized in [FINDINGS.md](FINDINGS.md), the answers of the quantization candidates are compared in [docs/quantization-comparison.md](docs/quantization-comparison.md), the answers of SinhalaLLM-1.7B on the golden questions are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).

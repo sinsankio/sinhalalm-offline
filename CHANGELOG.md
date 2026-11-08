@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### ops/hf-space-deploy — Deployment to a Hugging Face static Space
+
+#### Added
+
+- `make deploy`, which runs `make ci`, refuses to continue without a version tag on the current commit, and then runs `deploy/deploy_space.py`. It uploads the model package and its card to the public model repository `sinsankio/sinhalallm-1.7b-onnx-web`, builds the application pinned to that repository and commit (`VITE_MODEL_REPO`, `VITE_MODEL_REVISION`), and uploads it to the static Space `sinsankio/sinhalalm-offline` with the isolation headers in its `custom_headers`.
+- The worker loads the model from the pinned commit on the Hub, checks the SHA-256 of every file against the manifest while it streams, and removes the cached files of other revisions.
+- `make e2e-live`, which runs the browser tests against the deployed Space; `SINHALALM_E2E_SIGN_FILE` gives the token for a private Space.
+
+#### Attempts
+
+- The first deployment uploaded the application with the models to the Space and failed with "Storage limit reached for this space (Max: 1 GB)" (S18), so the models moved to their own repository. Release candidate 1 therefore held the application only, with local model paths, and could not load a model.
+- Release candidates 2 to 4 each failed one live browser test, which the fix branches above record: a dropped connection reported as a full disk (S20), no progress bar (S21) and no offline load (S22). The pin to the latest repository commit (S23) was found during the documentation work.
+
+#### Results
+
+- On release candidate 5, all seven browser tests pass on the Space, with the 4-bit model on WebAssembly. A separate check on WebGPU offered the 8-bit model by default, loaded it, answered and reloaded without a connection.
+
+#### Decisions
+
+- Sineth chose the Space `sinsankio/sinhalalm-offline`, kept it private until the live version worked and then made it public, and shipped the 8-bit model as the default. On 2026-11-08, Sineth accepted the live Space after a manual test.
+
 ### docs/community — Community documentation for Hugging Face
 
 #### Added
