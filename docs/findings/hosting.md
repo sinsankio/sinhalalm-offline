@@ -53,3 +53,13 @@ The browser tests ran against the public Space with `make e2e-live`, which point
 | v0.1.0-rc.5 | 7 of 7 (43.1 min) | download 35.7 min, greedy answers identical, answers offline in 31 s |
 
 The Hub served the model at about 1.1 MB/s to this machine, so a first download of the 4-bit model took 17 to 36 minutes. The headless tests have no GPU, so they ran the 4-bit model on WebAssembly.
+
+A separate check ran the 8-bit model on WebGPU (RTX 3060 Laptop GPU, Chrome with Vulkan) against the rc.5 Space:
+
+| Step | Result |
+|---|---|
+| First visit | the 8-bit model (2.48 GB) offered by default |
+| Download and load from the Hub | 26.5 minutes, then ready on WebGPU, cross-origin isolated |
+| Answer to ශ්‍රී ලංකාවේ අගනුවර කුමක්ද? | ශ්‍රී ලංකාවේ අගනුවර මහනුවර වේ. (7 tokens, first token after 0.1 s); the answer names the wrong city, a known limitation of the model |
+| Reload without a connection | loaded from the device in 6.3 s plus a 1.1 s warm-up, on WebGPU |
+| Delete | the model cache removed, only the application cache left |
