@@ -9,11 +9,23 @@ import { decodeEntities } from "../src/text/entities.js";
 export const EXPECTED_GREEDY = process.env.SINHALALM_EXPECTED_GREEDY;
 export const MAX_NEW_TOKENS = 32;
 
+const HUB_MODEL = process.env.SINHALALM_E2E_MODEL;
+
+async function loadTokenizer(localModel) {
+  if (!HUB_MODEL) {
+    env.localModelPath = "public/models/";
+    env.allowRemoteModels = false;
+    return AutoTokenizer.from_pretrained(localModel);
+  }
+  const [repo, revision] = HUB_MODEL.split("@");
+  env.allowLocalModels = false;
+  env.remotePathTemplate = `{model}/resolve/${encodeURIComponent(revision)}/`;
+  return AutoTokenizer.from_pretrained(repo, { revision });
+}
+
 export async function expectedAnswers() {
-  env.localModelPath = "public/models/";
-  env.allowRemoteModels = false;
   const expected = JSON.parse(readFileSync(EXPECTED_GREEDY, "utf8"));
-  const tokenizer = await AutoTokenizer.from_pretrained(expected.model);
+  const tokenizer = await loadTokenizer(expected.model);
   const { questions } = JSON.parse(readFileSync("../golden/prompts.json", "utf8"));
   return expected.cases.map((item, index) => ({
     key: item.key,
