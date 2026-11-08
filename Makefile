@@ -69,7 +69,7 @@ $(eval $(call content_stamp,package,$(PACKAGE_INPUTS)))
 $(eval $(call content_stamp,parity,$(PARITY_INPUTS)))
 $(eval $(call content_stamp,e2e,$(E2E_INPUTS)))
 
-.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify dev preview test-web e2e e2e-live ci deploy dataset
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify dev preview test-web e2e e2e-live article ci deploy dataset
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -191,6 +191,9 @@ test-web: $(TOKENIZER_CORPUS) ## Run web unit tests, including gate 3
 	cd $(WEB) && $(NPM) test
 
 e2e: $(E2E_OK) ## Browser tests: gate 4, offline mode and the main flows (downloads the model into a temporary profile)
+
+article: ## Publish the community article as the static Space sinsankio/sinhalalm-offline-article (needs a write token)
+	$(PY) deploy/deploy_article.py
 
 e2e-live: $(EXPECTED_GREEDY) | link-models ## Browser tests against the deployed Space (SINHALALM_E2E_SIGN_FILE for a private Space)
 	cd $(WEB) && SINHALALM_E2E_URL=$(LIVE_URL) SINHALALM_EXPECTED_GREEDY=$(EXPECTED_GREEDY) $(NPM) exec -- playwright test

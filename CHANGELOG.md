@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### feat/article-space — The article as a static Space
+
+#### Added
+
+- `make article` publishes the community article as the static Space `sinsankio/sinhalalm-offline-article`. The page renders `article.md` with marked 12.0.2 and DOMPurify 3.1.6, draws the Mermaid blocks with Mermaid 10.9.1, and hides the image after each block, which stays in `article.md` for other renderers.
+
+#### Attempts
+
+- Publishing the article at huggingface.co/new-blog failed with "You don't have the required permissions to complete this action". The Hub documentation says that a personal article needs a confirmed email and either a PRO subscription or a write role in a Team or Enterprise organization, and the account has a confirmed email but neither of the others.
+
+#### Results
+
+- In Chrome, all six diagrams were drawn in light and dark mode without errors, the Sinhala text rendered, and the page had no horizontal scroll at a width of 390 pixels.
+
+#### Decisions
+
+- Sineth chose the article Space over a PRO subscription, an organization or a Markdown file in the model repository.
+
 ### ops/hf-space-deploy — Deployment to a Hugging Face static Space
 
 #### Added

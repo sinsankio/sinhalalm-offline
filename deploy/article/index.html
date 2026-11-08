@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SinhalaLLM in the Browser</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600&family=Noto+Sans:wght@400;600&family=Noto+Sans+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #fbfcfa;
+        --text: #1d2420;
+        --muted: #5b665f;
+        --accent: #1f7a4d;
+        --border: #dfe5e0;
+        --code-bg: #eef2ee;
+        --table-head: #f1f5f1;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --bg: #121614;
+          --text: #e3e8e4;
+          --muted: #9aa69e;
+          --accent: #5cc48d;
+          --border: #2a322d;
+          --code-bg: #1b211e;
+          --table-head: #1a201c;
+        }
+      }
+      :root[data-theme="dark"] {
+        --bg: #121614;
+        --text: #e3e8e4;
+        --muted: #9aa69e;
+        --accent: #5cc48d;
+        --border: #2a322d;
+        --code-bg: #1b211e;
+        --table-head: #1a201c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 17px/1.7 "Noto Sans", "Noto Sans Sinhala", system-ui, sans-serif;
+      }
+      article {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 16px 80px;
+      }
+      h1 {
+        font-size: 2.1rem;
+        line-height: 1.25;
+        margin: 0 0 1.5rem;
+      }
+      h3 {
+        font-size: 1.45rem;
+        margin: 2.6rem 0 0.8rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+      }
+      h4 {
+        font-size: 1.1rem;
+        margin: 1.8rem 0 0.6rem;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font-family: "Noto Sans Mono", ui-monospace, monospace;
+        font-size: 0.88em;
+        background: var(--code-bg);
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      pre {
+        background: var(--code-bg);
+        padding: 14px 16px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        overflow-wrap: normal;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        margin: 1.2rem 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.93rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: var(--table-head);
+      }
+      img {
+        max-width: 100%;
+      }
+      .mermaid {
+        margin: 1.6rem 0 0.4rem;
+        overflow-x: auto;
+        text-align: center;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+      }
+      em {
+        color: var(--muted);
+      }
+      .status {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <article id="article"><p class="status">Loading the article…</p></article>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <script>
+      const dark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+      function diagramFallback(element) {
+        const image = element?.querySelector("img");
+        return (
+          element?.tagName === "P" &&
+          element.children.length === 1 &&
+          image &&
+          /^diagrams\/.+\.svg$/.test(image.getAttribute("src") ?? "")
+        );
+      }
+
+      async function render() {
+        const root = document.getElementById("article");
+        try {
+          const response = await fetch("article.md");
+          if (!response.ok) throw new Error(`article.md: ${response.status}`);
+          root.innerHTML = DOMPurify.sanitize(marked.parse(await response.text(), { gfm: true }));
+          for (const table of root.querySelectorAll("table")) {
+            const wrap = document.createElement("div");
+            wrap.className = "table-wrap";
+            table.replaceWith(wrap);
+            wrap.append(table);
+          }
+          for (const code of root.querySelectorAll("pre > code.language-mermaid")) {
+            const pre = code.parentElement;
+            const next = pre.nextElementSibling;
+            if (diagramFallback(next)) next.remove();
+            const diagram = document.createElement("div");
+            diagram.className = "mermaid";
+            diagram.textContent = code.textContent;
+            pre.replaceWith(diagram);
+          }
+          mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: "strict",
+            theme: dark() ? "dark" : "neutral",
+            fontFamily: '"Noto Sans", "Noto Sans Sinhala", sans-serif',
+          });
+          await mermaid.run({ querySelector: ".mermaid" });
+        } catch (error) {
+          root.innerHTML = "";
+          const message = document.createElement("p");
+          message.className = "status";
+          message.textContent = `The article could not be loaded (${error.message}).`;
+          root.append(message);
+        }
+      }
+
+      render();
+    </script>
+  </body>
+</html>

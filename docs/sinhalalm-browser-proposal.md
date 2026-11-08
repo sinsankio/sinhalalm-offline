@@ -398,6 +398,8 @@ sinhalalm-web/
 │   └── e2e/                  # Playwright tests, gate 4, offline test
 ├── deploy/
 │   ├── deploy_space.py       # models to the model repo, app to the Space
+│   ├── deploy_article.py     # the article as a static Space
+│   ├── article/              # article Space page and card
 │   ├── model/README.md       # model card template
 │   ├── space/README.md       # Space card template
 │   └── dataset/              # results dataset card and table export
