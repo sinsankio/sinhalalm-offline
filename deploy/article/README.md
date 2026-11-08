@@ -17,4 +17,4 @@ datasets:
 
 # SinhalaLLM in the Browser
 
-How [SinhalaLLM-1.7B](https://huggingface.co/namindu94/SinhalaLLM-1.7B) by Namindu Sanchila Nadeeshan was brought fully offline into the browser: conversion, quantization, the browser runtime, the offline mode and hosting on Hugging Face. The application itself is [Offline සිංහල](https://huggingface.co/spaces/sinsankio/sinhalalm-offline).
+How [SinhalaLLM-1.7B](https://huggingface.co/namindu94/SinhalaLLM-1.7B) by Namindu Sanchila Nadeeshan was brought fully offline into the browser: conversion, quantization, the browser runtime, the offline mode and hosting on Hugging Face. The application itself is [Offline සිංහල](https://huggingface.co/spaces/sinsankio/sinhalalm-offline), and the source code is on [GitHub](https://github.com/sinsankio/sinhalalm-offline).

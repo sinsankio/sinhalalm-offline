@@ -15,6 +15,8 @@ tags:
 
 Converted and quantized ONNX versions of [SinhalaLLM-1.7B](https://huggingface.co/namindu94/SinhalaLLM-1.7B) (version 2.1, revision `{revision}`) by Namindu Sanchila Nadeeshan, for [Offline සිංහල](https://huggingface.co/spaces/{space}), an application that answers Sinhala questions inside the browser with transformers.js. Once the files are downloaded, no server and no network connection are needed.
 
+How these files were made is explained in the [article](https://huggingface.co/spaces/sinsankio/sinhalalm-offline-article), the evaluation results are in the [results dataset](https://huggingface.co/datasets/sinsankio/sinhalallm-1.7b-onnx-web-results), and the source code is on [GitHub](https://github.com/sinsankio/sinhalalm-offline).
+
 ### Variants
 
 | Variant | Files | Download | Perplexity on FLORES+ (1,012 sentences) |

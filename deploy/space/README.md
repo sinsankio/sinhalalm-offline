@@ -26,8 +26,16 @@ Offline Q&A in Sinhala Language. Ask a question in Sinhala, and [SinhalaLLM-1.7B
 
 For the best speed, open the app directly at its own address rather than inside this page, in a recent Chrome or Edge with GPU acceleration. Chrome on Linux needs WebGPU to be enabled; the app explains how.
 
+## Learn more
+
+- [How it was built](https://huggingface.co/spaces/sinsankio/sinhalalm-offline-article): the article, with worked examples and diagrams
+- [Model files](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web): the 8-bit and 4-bit ONNX models this app downloads
+- [Results](https://huggingface.co/datasets/sinsankio/sinhalallm-1.7b-onnx-web-results): quality, speed and memory measurements
+- [Collection](https://huggingface.co/collections/sinsankio/offline-sinhala-question-answering-in-the-browser): everything in one place
+- [Source code](https://github.com/sinsankio/sinhalalm-offline) on GitHub
+
 ## Credits
 
-SinhalaLLM-1.7B (version 2.1) is by Namindu Sanchila Nadeeshan and released under the Apache License 2.0. It is built on [SmolLM2-1.7B](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B). The model files in `models/` are converted and quantized ONNX versions of it; see `models/sinhalallm-1.7b/v2.1/NOTICE.txt`.
+SinhalaLLM-1.7B (version 2.1) is by Namindu Sanchila Nadeeshan and released under the Apache License 2.0. It is built on [SmolLM2-1.7B](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B). The app downloads converted and quantized ONNX versions of it from [sinsankio/sinhalallm-1.7b-onnx-web](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web); see `NOTICE.txt` there.
 
 Release {version}.
