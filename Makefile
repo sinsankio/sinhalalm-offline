@@ -69,7 +69,7 @@ $(eval $(call content_stamp,package,$(PACKAGE_INPUTS)))
 $(eval $(call content_stamp,parity,$(PARITY_INPUTS)))
 $(eval $(call content_stamp,e2e,$(E2E_INPUTS)))
 
-.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify dev preview test-web e2e e2e-live ci deploy
+.PHONY: FORCE help setup setup-python setup-web lint lint-python lint-web format golden check-golden convert onnx quantize quality package link-models check-package rq1 verify dev preview test-web e2e e2e-live ci deploy dataset
 
 help:
 	@grep -E '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -174,6 +174,9 @@ rq1: quantize ## RQ1: perplexity and answer agreement of every candidate variant
 	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q4-v0-small
 	$(CAPPED_PY) convert/eval_quality.py rq1 --variant fp16 --sentences 200 --questions 3
 	$(CAPPED_PY) convert/eval_quality.py rq1 --variant q8 --sentences 50 --questions 1
+
+dataset: ## Export the evaluation results as dataset tables into the model store
+	$(PY) deploy/dataset/export_results.py
 
 verify: check-golden ## Rerun golden generation and gate 1 from scratch
 	$(PY) convert/parity_check.py
