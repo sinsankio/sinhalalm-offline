@@ -45,7 +45,6 @@ BROWSER = [
     ("8-bit", "WebGPU", "download", 2.48, "GB"),
     ("8-bit", "WebGPU", "median speed", 26.6, "tokens/s"),
     ("8-bit", "WebGPU", "median first token", 76, "ms"),
-    ("8-bit", "WebGPU", "load from the network", 12.8, "s"),
     ("8-bit", "WebGPU", "renderer process", 1.99, "GB"),
 ]
 
