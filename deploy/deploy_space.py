@@ -55,7 +55,12 @@ def upload_models(api: HfApi, repo: str, space: str) -> str:
         repo_id=repo,
         commit_message=f"Upload model package {MODEL_NAME}/{MODEL_VERSION}",
     )
-    return api.model_info(repo).sha
+    return model_revision(api, repo)
+
+
+def model_revision(api: HfApi, repo: str) -> str:
+    [manifest] = api.get_paths_info(repo, ["manifest.json"], expand=True)
+    return manifest.last_commit.oid
 
 
 def build_app(repo: str, revision: str) -> None:

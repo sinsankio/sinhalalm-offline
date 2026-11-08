@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### fix/deploy-pin — A new model card would force a new download
+
+#### Fixed
+
+- `make deploy` pinned the application to the latest commit of the model repository. A commit that changed only the model card would therefore give the application a new revision, and the worker, which removes the cached files of other revisions, would make every reader download the model again (1.19 or 2.48 GB). The application is now pinned to the last commit that changed `manifest.json`. The manifest lists the SHA-256 of every model file, so that commit changes only when the model files change.
+
+#### Results
+
+- On `sinsankio/sinhalallm-1.7b-onnx-web`, the new lookup returns `fd97e545`, the commit the live application already uses.
+
 ### fix/pinned-revision — The tokenizer check ignored the pinned revision
 
 #### Fixed
