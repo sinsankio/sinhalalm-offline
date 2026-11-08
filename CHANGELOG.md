@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/github-readme and docs/cross-links — README for GitHub and links between the published pieces
+
+#### Changed
+
+- The README is rewritten for GitHub: a header with the app icon and badges, a table of the work on Hugging Face, the results up front, a diagram of how it works, GitHub admonitions, and the pipeline targets in a collapsed list.
+- The repository is published at [sinsankio/sinhalalm-offline](https://github.com/sinsankio/sinhalalm-offline) on GitHub, with the Apache License 2.0 from its initial commit.
+- The Space card, the model card, the article card and the article link to each other, to the results dataset, the collection and the GitHub repository. The Space card no longer says that the model files are in the Space, which stopped being true when they moved to the model repository (S18).
+
+#### Results
+
+- After the card updates, the model repository still pins the application to `fd97e545`, and the Space still serves the application with its isolation headers.
+
 ### feat/article-space — The article as a static Space
 
 #### Added
