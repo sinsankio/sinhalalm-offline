@@ -66,7 +66,7 @@ echo '{"htmlLabels":false,"flowchart":{"htmlLabels":false}}' > mermaid.json
 npx -y @mermaid-js/mermaid-cli@12.0.0 -c mermaid.json -b white -i docs/community/diagrams/<name>.mmd -o docs/community/diagrams/<name>.svg
 ```
 
-1. Replace the `[[NEEDS INPUT: …]]` placeholders: the dataset link from step 2, and the result of the live offline test.
+1. Check that the dataset link in the article opens the dataset published in step 2. The article has no placeholders left.
 2. On huggingface.co, start a new community article from your profile, and paste the Markdown.
 3. Upload the six images in the editor and replace each `diagrams/<name>.svg` path with the uploaded image. The SVG labels are plain SVG text, so the text in an SVG depends on the reader's installed fonts. For `answer-flow`, which contains Sinhala, a PNG is the safer choice, and PNG versions of any diagram are rendered with:
 
