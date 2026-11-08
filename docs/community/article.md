@@ -67,7 +67,7 @@ The pipeline therefore writes a corrected configuration for the exporter, and a 
 
 #### B) Exporting to ONNX
 
-The browser runtime reads models in the **ONNX** format, a portable description of the model's computation. Exporting a 1.74B model needed more memory than my machine had free (about 9 to 14 GB of its 23 GB), so the export runs as a memory-capped process that writes one file per weight, followed by a separate step that checks every file and joins them. The size of the result confirms that nothing was lost or duplicated:
+The browser runtime reads models in the **ONNX** format, a portable description of the model's computation. Exporting a 1.74B model in one pass needs more memory than a typical workstation has free, so the export runs as a memory-capped process that writes one file per weight, followed by a separate step that checks every file and joins them. The size of the result confirms that nothing was lost or duplicated:
 
 - The model has 1,740,474,368 parameters.
 - In fp32, each parameter takes 4 bytes.
@@ -172,7 +172,7 @@ The browser runs these steps with ordinary arithmetic. The rewritten model gives
 
 #### B) Two operators that stalled the GPU
 
-On an RTX 3060 Laptop GPU, the first answers came at 4.6 to 6.3 tokens per second, against a target of 20. The runtime's log showed two operators running on the processor, which forced the GPU to wait for a copy many times per token.
+On a laptop GPU, the first answers came at 4.6 to 6.3 tokens per second, against a target of 20. The runtime's log showed two operators running on the processor, which forced the GPU to wait for a copy many times per token.
 
 The first one was a check for invalid numbers (`IsNaN`) after every attention step in all 24 layers, which the WebGPU backend does not implement. The replacement relies on a property of floating-point numbers:
 
@@ -192,7 +192,7 @@ In the application, where transformers.js also keeps the key-value cache on the 
 
 #### C) WebAssembly has no fast 4-bit kernel
 
-Without a GPU, the model generated 0.6 tokens per second with seven threads. A profile attributed 94% of the time to the 4-bit matrix product, which the WebAssembly build does not optimize. To put this into perspective, take a 50-word answer:
+Without a GPU, the model generated 0.6 tokens per second on the processor, even with multiple threads. A profile attributed 94% of the time to the 4-bit matrix product, which the WebAssembly build does not optimize. To put this into perspective, take a 50-word answer:
 
 - At 1.76 tokens per word, it is about 88 tokens.
 - On WebGPU at 26.5 tokens per second, it takes about 3.3 s.
@@ -200,7 +200,7 @@ Without a GPU, the model generated 0.6 tokens per second with seven threads. A p
 
 #### D) Chrome on Linux hides the GPU
 
-In my first manual test, Chrome on Linux offered no hardware WebGPU at all, and only a software adapter with one flag. A software adapter runs on the processor and would be slower than WebAssembly, so the application rejects it. With `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan`, Chrome found the NVIDIA GPU. The application now explains this on Linux and shows the command.
+On Linux, Chrome offers no hardware WebGPU by default, and only a software adapter with one flag. A software adapter runs on the processor and would be slower than WebAssembly, so the application rejects it. With `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan`, Chrome finds the hardware GPU. The application now explains this on Linux and shows the command.
 
 #### E) Weights inside the model file doubled the memory
 
@@ -327,7 +327,7 @@ The 8-bit model is the default on computers with hardware WebGPU, since it is as
 
 ### Hosting on a static Space
 
-The application is a set of static files, so it is hosted on a Hugging Face static Space. Two things had to be confirmed on the real host rather than on my local server.
+The application is a set of static files, so it is hosted on a Hugging Face static Space. Two things had to be confirmed on the real host rather than on a local server.
 
 The first was **cross-origin isolation**. Multi-threaded WebAssembly needs shared memory between threads, which browsers only allow on pages served with two specific headers. A static Space accepts them through its configuration, and on the live Space the page reported `crossOriginIsolated` as true, the service worker took control after the first reload, and the page reloaded without a connection.
 
@@ -368,11 +368,11 @@ The live tests found four more problems that a local server never shows:
 - **The model did not load offline.** transformers.js 4.3.1 checks for `tokenizer_config.json` without the pinned commit, so it asked the Hub for the latest version of that file. Offline, the request failed and the model did not load. The worker now writes the pinned commit into every address it asks for.
 - **A card change would have re-downloaded the model.** The application was pinned to the latest commit of the model repository, so a commit that changed only the model card would have given it a new revision, and every reader's browser would have downloaded the model again. It is now pinned to the last commit that changed the manifest, which lists the hash of every model file.
 
-On my connection, the 4-bit model downloaded from the Hub in 17 to 36 minutes, at about 1.1 MB/s. After these fixes, the browser tests passed against the live Space: the download with its progress bar, browser answers that match Python token for token, streaming and stopping an answer, the check for a question longer than the context, and a reload that keeps the model. With the connection switched off, the application reloaded from the cache and answered in 31 seconds, and deleting the model left nothing behind, so a new download needed the connection again. All seven tests passed in 43 minutes, most of it the download.
+A first download takes a while on a slow connection, which is why the application asks before it downloads and shows its progress. After these fixes, the browser tests passed against the live Space: the download with its progress bar, browser answers that match Python token for token, streaming and stopping an answer, the check for a question longer than the context, and a reload that keeps the model. With the connection switched off, the application reloaded from the cache and answered, and deleting the model left nothing behind, so a new download needed the connection again.
 
 ### Results
 
-All measurements below come from headless Chrome on an RTX 3060 Laptop GPU and its 8-core processor, with the 4-bit model unless stated otherwise.
+All measurements below come from Chrome on a laptop with a mid-range NVIDIA GPU, with the 4-bit model unless stated otherwise.
 
 | Target | WebGPU | WebAssembly |
 |---|---|---|
