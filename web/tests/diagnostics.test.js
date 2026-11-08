@@ -95,6 +95,7 @@ describe("modelSource", () => {
       id: "sinhalallm-1.7b/v2.1",
       revision: "main",
       base: "/models/sinhalallm-1.7b/v2.1/",
+      pathTemplate: "{model}/resolve/{revision}/",
     });
   });
 
@@ -103,5 +104,11 @@ describe("modelSource", () => {
     expect(modelFileUrl("onnx/model_q4.onnx", "https://app.example", source)).toBe(
       "https://huggingface.co/user/model/resolve/abc123/onnx/model_q4.onnx",
     );
+  });
+
+  it("keeps the revision when transformers.js leaves it out", () => {
+    const { pathTemplate } = modelSource({ repo: "user/model", revision: "abc123" });
+    expect(pathTemplate).toBe("{model}/resolve/abc123/");
+    expect(pathTemplate.replaceAll("{revision}", "main")).toBe("{model}/resolve/abc123/");
   });
 });

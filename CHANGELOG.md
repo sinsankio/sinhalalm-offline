@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### fix/pinned-revision — The tokenizer check ignored the pinned revision
+
+#### Fixed
+
+- On the live Space, the application did not load offline: "The model could not be loaded. Failed to fetch". Before it loads the tokenizer, transformers.js 4.3.1 checks that `tokenizer_config.json` exists, and that check drops the revision passed to `from_pretrained`. It asked for `resolve/main/tokenizer_config.json`, which is not in the cache (the cache holds the files of the pinned commit), so it went to the network. Online, this quietly read one file from `main` instead of the pinned commit. The worker now writes the pinned commit into `env.remotePathTemplate`, so every request goes to the pinned commit, even one that leaves the revision out.
+
+#### Results
+
+- With the cached profile of the live test opened offline, the only failed request was `GET …/resolve/main/tokenizer_config.json` (`net::ERR_INTERNET_DISCONNECTED`). The local tests never saw this, since a local model has no revision in its URLs.
+
 ### fix/download-progress — No progress bar for downloads from the Hub
 
 #### Fixed
