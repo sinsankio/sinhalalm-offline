@@ -66,19 +66,21 @@ echo '{"htmlLabels":false,"flowchart":{"htmlLabels":false}}' > mermaid.json
 npx -y @mermaid-js/mermaid-cli@12.0.0 -c mermaid.json -b white -i docs/community/diagrams/<name>.mmd -o docs/community/diagrams/<name>.svg
 ```
 
-1. Check that the dataset link in the article opens the dataset published in step 2. The article has no placeholders left.
-2. On huggingface.co, start a new community article from your profile, and paste the Markdown.
-3. Upload the six images in the editor and replace each `diagrams/<name>.svg` path with the uploaded image. The SVG labels are plain SVG text, so the text in an SVG depends on the reader's installed fonts. For `answer-flow`, which contains Sinhala, a PNG is the safer choice, and PNG versions of any diagram are rendered with:
+Community articles on huggingface.co need a PRO subscription or a write role in a Team or Enterprise organization, which this account does not have. The article is therefore published as the static Space [sinsankio/sinhalalm-offline-article](https://huggingface.co/spaces/sinsankio/sinhalalm-offline-article), which renders `article.md` in the browser and draws the Mermaid blocks itself, hiding the image after each block.
+
+1. Check that the dataset link in the article opens the dataset published in step 2.
+2. Publish or update the Space:
 
    ```sh
-   npx -y @mermaid-js/mermaid-cli@12.0.0 -b white -s 2 -i docs/community/diagrams/<name>.mmd -o <name>.png
+   make article
    ```
 
-4. Preview the article in light and dark mode, check that the Sinhala text renders, and publish it.
+3. Open the Space in light and dark mode and check that the six diagrams are drawn and the Sinhala text renders.
+4. To move it to a community article later, paste `article.md` at huggingface.co/new-blog and upload the six SVGs where the article shows `diagrams/<name>.svg`.
 
 ### 4. Collection
 
-Collections hold models, datasets, Spaces and papers, but not articles, so the article link goes into the description.
+Collections hold models, datasets, Spaces and papers. The article is a Space, so it is an item like the others.
 
 ```python
 from huggingface_hub import HfApi
@@ -87,10 +89,11 @@ api = HfApi()
 collection = api.create_collection(
     title="Offline Sinhala question answering in the browser",
     namespace="sinsankio",
-    description="SinhalaLLM-1.7B running fully offline in the browser. Article: <article link>",
+    description="SinhalaLLM-1.7B running fully offline in the browser: the application, the article, the model files and the results.",
 )
 items = [
     ("sinsankio/sinhalalm-offline", "space", "The application"),
+    ("sinsankio/sinhalalm-offline-article", "space", "The article: how it was built"),
     ("sinsankio/sinhalallm-1.7b-onnx-web", "model", "Browser-ready 8-bit and 4-bit ONNX files"),
     ("sinsankio/sinhalallm-1.7b-onnx-web-results", "dataset", "Quality, speed and memory results"),
     ("namindu94/SinhalaLLM-1.7B", "model", "The original model by Namindu Sanchila Nadeeshan"),
