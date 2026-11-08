@@ -35,7 +35,7 @@ env.allowRemoteModels = MODEL_SOURCE.remote;
 env.allowLocalModels = !MODEL_SOURCE.remote;
 env.localModelPath = "/models/";
 env.remoteHost = HUB_HOST;
-env.remotePathTemplate = "{model}/resolve/{revision}/";
+env.remotePathTemplate = MODEL_SOURCE.pathTemplate;
 env.backends.onnx.wasm.wasmPaths = undefined;
 
 let tokenizer = null;

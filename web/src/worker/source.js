@@ -3,7 +3,13 @@ const HUB = "https://huggingface.co/";
 
 export function modelSource({ repo, revision } = {}) {
   if (!repo) {
-    return { remote: false, id: LOCAL_ID, revision: "main", base: `/models/${LOCAL_ID}/` };
+    return {
+      remote: false,
+      id: LOCAL_ID,
+      revision: "main",
+      base: `/models/${LOCAL_ID}/`,
+      pathTemplate: "{model}/resolve/{revision}/",
+    };
   }
   const pinned = revision || "main";
   return {
@@ -11,6 +17,7 @@ export function modelSource({ repo, revision } = {}) {
     id: repo,
     revision: pinned,
     base: `${HUB}${repo}/resolve/${encodeURIComponent(pinned)}/`,
+    pathTemplate: `{model}/resolve/${encodeURIComponent(pinned)}/`,
   };
 }
 
