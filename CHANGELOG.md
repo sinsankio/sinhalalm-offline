@@ -6,6 +6,90 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### ops/hf-space-deploy — Deployment to a Hugging Face static Space
+
+#### Added
+
+- `make deploy`, which runs `make ci`, refuses to continue without a version tag on the current commit, and then runs `deploy/deploy_space.py`. It uploads the model package and its card to the public model repository `sinsankio/sinhalallm-1.7b-onnx-web`, builds the application pinned to that repository and commit (`VITE_MODEL_REPO`, `VITE_MODEL_REVISION`), and uploads it to the static Space `sinsankio/sinhalalm-offline` with the isolation headers in its `custom_headers`.
+- The worker loads the model from the pinned commit on the Hub, checks the SHA-256 of every file against the manifest while it streams, and removes the cached files of other revisions.
+- `make e2e-live`, which runs the browser tests against the deployed Space; `SINHALALM_E2E_SIGN_FILE` gives the token for a private Space.
+
+#### Attempts
+
+- The first deployment uploaded the application with the models to the Space and failed with "Storage limit reached for this space (Max: 1 GB)" (S18), so the models moved to their own repository. Release candidate 1 therefore held the application only, with local model paths, and could not load a model.
+- Release candidates 2 to 4 each failed one live browser test, which the fix branches above record: a dropped connection reported as a full disk (S20), no progress bar (S21) and no offline load (S22). The pin to the latest repository commit (S23) was found during the documentation work.
+
+#### Results
+
+- On release candidate 5, all seven browser tests pass on the Space, with the 4-bit model on WebAssembly. A separate check on WebGPU offered the 8-bit model by default, loaded it, answered and reloaded without a connection.
+
+#### Decisions
+
+- Sineth chose the Space `sinsankio/sinhalalm-offline`, kept it private until the live version worked and then made it public, and shipped the 8-bit model as the default. On 2026-11-08, Sineth accepted the live Space after a manual test.
+
+### docs/community — Community documentation for Hugging Face
+
+#### Added
+
+- A community article, `docs/community/article.md`, which explains the project and its findings for readers outside the project: choosing the model, moving it into ONNX without changing it, quantization and quality, the problems of the browser runtime, the offline mode, hosting and results. Every technical step comes with an example from the project's own measurements, and the article credits the works that shaped the approach.
+- Six diagrams in `docs/community/diagrams/`, as Mermaid sources and rendered SVG images: the conversion pipeline, the browser runtime, the offline mechanism, the model download, the deployment and the path of a question.
+- An expanded model card in `deploy/model/README.md`, with usage in transformers.js, the ZWJ clusters of the vocabulary, how the files were made, speed and memory, limitations and credits.
+- A results dataset card, `deploy/dataset/README.md`, and `deploy/dataset/export_results.py`, which builds the perplexity, agreement, per-sentence and browser tables from the evaluation reports into the model store.
+- `docs/community/publishing.md`, the steps to publish the article, the model card, the dataset and a collection.
+
+#### Decisions
+
+- The documentation uses plain descriptions instead of the project's internal labels, explains each technical approach with an example and a diagram, and cites only the works that shaped the technical approach.
+- Sineth asked for Mermaid diagrams. The Hugging Face documentation does not mention Mermaid support, and a check of three public cards with well-formed Mermaid blocks (one model card, two dataset cards) showed them as plain code after the page had run its scripts in Chrome. No community article with a Mermaid block was found. The article and the model card therefore embed each diagram as a Mermaid block followed by its rendered image, which stays visible where the block is shown as code.
+- The diagrams are rendered with `@mermaid-js/mermaid-cli` 12.0.0. The first render put the labels into HTML elements inside the SVG, which can disappear when an SVG is shown as an image, so the diagrams are rendered with plain SVG text labels.
+- The first draft of the publishing steps warned that a changed model card would re-pin the application and make every reader download the models again. That pinning is now fixed on the deployment branch, so publishing the card no longer changes the application's model revision.
+- Sineth confirmed that a native speaker reviewed the answers of the 8-bit model too, so the documents state that both shipped models passed both parts of the quality rule. The fact is recorded in the findings.
+- The documents describe four problems found on the live Space and their fixes: a dropped connection reported as a full disk, the missing progress bar, the model failing to load offline because one tokenizer file was requested from the latest version, and the card change that would have re-pinned the application.
+- `make dataset` runs the export with the model store from `local.mk`, and the script stops with a clear message when the evaluation reports are missing.
+- Collections in `huggingface_hub` 0.36.2 accept models, datasets, Spaces, papers and collections, but not articles, so the article is linked from the collection description.
+
+### fix/deploy-pin — A new model card would force a new download
+
+#### Fixed
+
+- `make deploy` pinned the application to the latest commit of the model repository. A commit that changed only the model card would therefore give the application a new revision, and the worker, which removes the cached files of other revisions, would make every reader download the model again (1.19 or 2.48 GB). The application is now pinned to the last commit that changed `manifest.json`. The manifest lists the SHA-256 of every model file, so that commit changes only when the model files change.
+
+#### Results
+
+- On `sinsankio/sinhalallm-1.7b-onnx-web`, the new lookup returns `fd97e545`, the commit the live application already uses.
+
+### fix/pinned-revision — The tokenizer check ignored the pinned revision
+
+#### Fixed
+
+- On the live Space, the application did not load offline: "The model could not be loaded. Failed to fetch". Before it loads the tokenizer, transformers.js 4.3.1 checks that `tokenizer_config.json` exists, and that check drops the revision passed to `from_pretrained`. It asked for `resolve/main/tokenizer_config.json`, which is not in the cache (the cache holds the files of the pinned commit), so it went to the network. Online, this quietly read one file from `main` instead of the pinned commit. The worker now writes the pinned commit into `env.remotePathTemplate`, so every request goes to the pinned commit, even one that leaves the revision out.
+
+#### Results
+
+- With the cached profile of the live test opened offline, the only failed request was `GET …/resolve/main/tokenizer_config.json` (`net::ERR_INTERNET_DISCONNECTED`). The local tests never saw this, since a local model has no revision in its URLs.
+
+### fix/download-progress — No progress bar for downloads from the Hub
+
+#### Fixed
+
+- On the live Space, the model panel said "Downloading the model…" without a progress bar for the whole download. The worker read each file's size from a HEAD request, and the Hub sends `tokenizer.json` compressed, without a `Content-Length`, so the total stayed unknown. The worker now takes the sizes from `manifest.json`, which already lists them, and no longer sends the HEAD requests, which took 3 to 10 seconds from the live origin before the download started.
+
+#### Results
+
+- On the local server, the progress bar appeared 119 ms after the download started, with "0 MB of 1189 MB".
+
+### fix/download-errors — Interrupted downloads were reported as a full disk
+
+#### Fixed
+
+- The first browser test against the live Space failed with "The model (1.19 GB) could not be stored on this device", with 23 GB free on the disk and a 10.7 GB quota. The worker reported every `Cache.put` error as a storage problem, but Chrome raises the same error when the connection drops during a download. Only `QuotaExceededError` now gives the storage message. Any other failure says that the download of the named file stopped before it finished, and the original error is kept as the cause and logged in the console.
+- The worker now downloads a file a second time after a network error or a server error (5xx). A damaged file, a missing file or a full quota is not retried.
+
+#### Results
+
+- Two later downloads of the 4-bit model from the Hub on the live origin both finished (about 20 minutes each at 1.1 MB/s), so the first failure could not be reproduced and was most likely a dropped connection.
+- On the local server, with the connection reset once for `tokenizer.json`, the worker retried and the model loaded. With the connection reset every time, it stopped after two attempts with the new message and removed the partial files.
+
 ### feat/q8-default — The 8-bit model as default
 
 #### Changed

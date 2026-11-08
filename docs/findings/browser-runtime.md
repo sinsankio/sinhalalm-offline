@@ -104,7 +104,7 @@ On WebGPU, the weights now go to the GPU without passing through the heap. The d
 
 ### 12. The 8-bit variant
 
-On FLORES+ (1,012 sentences), q8 has a perplexity of 115.5, against 113.2 for fp32 (+2.0%), 158.0 for q4 and 195.0 for the author's Q4_K_M, so it passes the quality gate. On WebGPU, with the files split as in S15, it reached the same speed as q4:
+On FLORES+ (1,012 sentences), q8 has a perplexity of 115.5, against 113.2 for fp32 (+2.0%), 158.0 for q4 and 195.0 for the author's Q4_K_M, so it passes the perplexity part of the quality gate. A native speaker also reviewed its answers (confirmed by Sineth on 2026-11-08), so it passes both parts. On WebGPU, with the files split as in S15, it reached the same speed as q4:
 
 | Variant, WebGPU (RTX 3060 Laptop GPU) | Download | Load from the network | Median first token | Median speed | Renderer process |
 |---|---|---|---|---|---|

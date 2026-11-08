@@ -1,0 +1,16 @@
+flowchart TB
+  M["Read manifest.json<br/>size and SHA-256 of every file"] --> Q{"Enough browser storage<br/>for the missing files?"}
+  Q -->|no| S["Explain how much space is needed"]
+  Q -->|yes| F["Fetch the next file"]
+  F --> P["Stream it into Cache Storage<br/>count bytes for the progress bar<br/>hash every chunk"]
+  P --> H{"Hash matches<br/>the manifest?"}
+  H -->|yes| N{"More files?"}
+  N -->|yes| F
+  N -->|no| R["Load the model from the cache"]
+  H -->|no| X["Reject the file as damaged"]
+  P -->|"connection dropped"| T{"First attempt?"}
+  T -->|yes| F
+  T -->|no| I["Say which file stopped"]
+  X --> C["Remove the partial download"]
+  I --> C
+  C --> FB["If the 8-bit model failed,<br/>load the 4-bit model instead"]

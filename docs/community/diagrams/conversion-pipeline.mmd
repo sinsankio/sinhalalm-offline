@@ -1,0 +1,14 @@
+flowchart TB
+  A["SinhalaLLM-1.7B<br/>bfloat16, 3.48 GB"] --> B["Load with a corrected configuration<br/>RoPE base 130,000"]
+  B --> CB{{"Same logits as the<br/>author's toolchain?"}}
+  CB -->|yes| C["Export to ONNX<br/>fp32, 6.96 GB"]
+  C --> CC{{"Same greedy answers,<br/>logits within 3.46e-5?"}}
+  CC -->|yes| D["Quantize to 8-bit and 4-bit<br/>one sensitive matrix kept in fp32"]
+  D --> CD{{"Perplexity not worse than<br/>the author's Q4_K_M?"}}
+  CD -->|yes| E["Rewrite operators that the<br/>browser runtime lacks"]
+  E --> CE{{"Identical logits?"}}
+  CE -->|yes| F["Web package<br/>separate weight files, manifest with SHA-256"]
+  F --> CF{{"Browser answers match<br/>Python token for token?"}}
+  A --> T["tokenizer.json"]
+  T --> CT{{"Browser tokenizer gives identical<br/>IDs on 10,000 sentences?"}}
+  CT -->|yes| F

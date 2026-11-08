@@ -8,9 +8,10 @@ import {
   status,
   test,
 } from "./fixtures.js";
+import { DOWNLOAD_MINUTES } from "../playwright.config.js";
 
 const READY = /Ready on/;
-const LOAD_TIMEOUT = { timeout: 15 * 60 * 1000 };
+const LOAD_TIMEOUT = { timeout: DOWNLOAD_MINUTES * 60 * 1000 };
 
 test.describe.configure({ mode: "serial" });
 test.skip(!EXPECTED_GREEDY, "SINHALALM_EXPECTED_GREEDY is not set");
