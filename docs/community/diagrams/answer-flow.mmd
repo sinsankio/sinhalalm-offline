@@ -1,0 +1,9 @@
+flowchart LR
+  Q["Question as typed<br/>ශ්රී ලංකාව"] --> Z["Add or remove the ZWJ<br/>to match the training data<br/>ශ්‍රී ලංකාව"]
+  Z --> CT["Chat template"]
+  CT --> TK["Tokenizer"]
+  TK --> G["Generation<br/>question and answer<br/>within 1,024 tokens"]
+  G --> D["Decode complete<br/>characters only"]
+  D --> E["Decode HTML entities<br/>#38;quot; becomes #quot;"]
+  E --> J["Join conjuncts written<br/>with a visible virama"]
+  J --> S["Answer on screen"]

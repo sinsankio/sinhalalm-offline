@@ -1,0 +1,8 @@
+flowchart LR
+  T["Version tag<br/>on a commit"] --> CI["Local checks<br/>lint, unit tests, quality,<br/>browser tests"]
+  CI --> MR["Upload the models<br/>to the model repository"]
+  MR --> REV["Model commit id"]
+  REV --> BUILD["Build the app,<br/>pinned to that commit"]
+  BUILD --> SP["Upload the app<br/>to the static Space"]
+  SP -.->|"reader opens the Space"| BR["Browser"]
+  BR -.->|"downloads the models<br/>at the pinned commit"| MR
