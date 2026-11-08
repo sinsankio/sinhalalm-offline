@@ -67,7 +67,13 @@ The pipeline therefore writes a corrected configuration for the exporter, and a 
 
 #### B) Exporting to ONNX
 
-The browser runtime reads models in the **ONNX** format, a portable description of the model's computation. Exporting a 1.74B model needed more memory than my machine had free (about 9 to 14 GB of its 23 GB), so the export runs as a memory-capped process that writes one file per weight, followed by a separate step that checks every file and joins them. The final data file is 6,961,897,472 bytes, which is exactly 1,740,474,368 parameters × 4 bytes. In other words, the exported model contains every parameter once and nothing else.
+The browser runtime reads models in the **ONNX** format, a portable description of the model's computation. Exporting a 1.74B model needed more memory than my machine had free (about 9 to 14 GB of its 23 GB), so the export runs as a memory-capped process that writes one file per weight, followed by a separate step that checks every file and joins them. The size of the result confirms that nothing was lost or duplicated:
+
+- The model has 1,740,474,368 parameters.
+- In fp32, each parameter takes 4 bytes.
+- 1,740,474,368 × 4 = 6,961,897,472 bytes, which is exactly the size of the final data file.
+
+In other words, the exported model contains every parameter once and nothing else.
 
 The exported model gives the same greedy answers as the original on all test questions, and its logits differ by at most 3.46e-5 of each position's largest logit, which is the size of rounding differences between two math libraries.
 
@@ -81,7 +87,13 @@ One file was missing, though. The model stores its chat template (the format tha
 
 At full precision, the model is 6.96 GB, which is far too large to download into a browser. **Quantization** stores each weight with fewer bits. A weight in fp32 takes 4 bytes, an 8-bit weight takes 1 byte and a 4-bit weight takes half a byte. Since a 4-bit number can only take 16 different values, the weights are grouped into blocks of 32, and each block stores one scale that maps those 16 values back to the real range.
 
-*Example.* 1,740,474,368 parameters at half a byte each come to about 0.87 GB. Add a scale for every block of 32 weights and a few parts kept at higher precision, and the shipped 4-bit model is 1.18 GB.
+*Example.* How the 4-bit model reaches its size:
+
+- Start with 1,740,474,368 parameters.
+- At 4 bits, each takes half a byte, so the weights alone come to about 0.87 GB.
+- Add one scale for every block of 32 weights.
+- Add the few parts kept at higher precision.
+- The result is the shipped 4-bit model: 1.18 GB.
 
 The cost of quantization is quality, which I measured with **perplexity** on the 1,012 Sinhala sentences of the FLORES+ test set. Perplexity describes how surprised the model is by real text, so lower is better.
 
@@ -89,7 +101,13 @@ The cost of quantization is quality, which I measured with **perplexity** on the
 
 The first 4-bit models lost far more than expected. Perplexity rose by 164% to 248% across every setting I tried, including different block sizes, asymmetric quantization and the HQQ method. To find out whether my pipeline was at fault, I evaluated the author's own 4-bit release (a Q4_K_M file made with llama.cpp, which mixes 4-bit and 6-bit weights) on the same sentences. It lost 51.5% on the same subset, so the sensitivity belongs to the model rather than to the pipeline.
 
-The cause came out of a simple search: keep one group of weights at full precision at a time and measure again. A single 2048 × 2048 matrix, the value projection of the first layer, accounted for most of the loss. Keeping just that matrix at full precision costs 16 MB and reduced the perplexity on 50 sentences from 279.2 to 143.2.
+The cause came out of a simple search:
+
+- Quantize the whole model to 4 bits, except one group of weights kept at full precision.
+- Measure the perplexity again.
+- Repeat with the next group, and compare.
+
+A single 2048 × 2048 matrix, the value projection of the first layer, accounted for most of the loss. Keeping just that matrix at full precision costs 16 MB and reduced the perplexity on 50 sentences from 279.2 to 143.2.
 
 | Model | Download | Perplexity (1,012 sentences) | Change |
 |---|---|---|---|
@@ -142,13 +160,27 @@ Could not find an implementation for GatherBlockQuantized(1) node with name '/mo
 
 The 4-bit quantizer stores the **embedding** (the table that turns each token ID into a vector) with a special operator that the Python and Node.js runtimes support, but the browser build does not. So the pipeline now replaces it with standard operations that compute the same values.
 
-*Example.* Two 4-bit codes share one byte. Suppose a block holds the codes −3 and 5. Each is stored with an offset of 8, as 5 and 13, and packed into one byte as 13 × 16 + 5 = 213. In the browser, the rewritten model recovers them with ordinary arithmetic: 213 mod 16 = 5, and 5 − 8 = −3; 213 ÷ 16 = 13 (whole part), and 13 − 8 = 5. Both codes are then multiplied by their block's scale. The rewritten model gives identical logits and the same perplexity, and the packaging step now refuses any model that still contains an operator the browser lacks.
+*Example.* Two 4-bit codes share one byte. Suppose a block holds the codes −3 and 5.
+
+- **Store:** add an offset of 8 to each code, so −3 becomes 5 and 5 becomes 13.
+- **Pack:** put both into one byte as 13 × 16 + 5 = 213.
+- **Recover the first code:** 213 mod 16 = 5, and 5 − 8 = −3.
+- **Recover the second code:** 213 ÷ 16 = 13 (whole part), and 13 − 8 = 5.
+- **Scale:** multiply both codes by their block's scale.
+
+The browser runs these steps with ordinary arithmetic. The rewritten model gives identical logits and the same perplexity, and the packaging step now refuses any model that still contains an operator the browser lacks.
 
 #### B) Two operators that stalled the GPU
 
 On an RTX 3060 Laptop GPU, the first answers came at 4.6 to 6.3 tokens per second, against a target of 20. The runtime's log showed two operators running on the processor, which forced the GPU to wait for a copy many times per token.
 
-The first one was a check for invalid numbers (`IsNaN`) after every attention step in all 24 layers, which the WebGPU backend does not implement. The replacement relies on a property of floating-point numbers: NaN is the only value that is not equal to itself, so `IsNaN(x)` becomes `Not(Equal(x, x))`, which runs on the GPU. The second one was the bit unpacking of the embedding from the previous section, which now uses integer division and subtraction.
+The first one was a check for invalid numbers (`IsNaN`) after every attention step in all 24 layers, which the WebGPU backend does not implement. The replacement relies on a property of floating-point numbers:
+
+- NaN is the only value that is not equal to itself.
+- So for any number x, `Equal(x, x)` is false exactly when x is NaN.
+- `IsNaN(x)` therefore becomes `Not(Equal(x, x))`, and both of those operators run on the GPU.
+
+The second one was the bit unpacking of the embedding from the previous section, which now uses integer division and subtraction.
 
 | Model, plain runtime session | Time per token | Tokens per second |
 |---|---|---|
@@ -160,7 +192,11 @@ In the application, where transformers.js also keeps the key-value cache on the 
 
 #### C) WebAssembly has no fast 4-bit kernel
 
-Without a GPU, the model generated 0.6 tokens per second with seven threads. A profile attributed 94% of the time to the 4-bit matrix product, which the WebAssembly build does not optimize. To put this into perspective: at 1.76 tokens per word, a 50-word answer is about 88 tokens, which takes about 3.3 s on WebGPU at 26.5 tokens per second and about 2.5 minutes on WebAssembly. I kept WebAssembly as a slow fallback for browsers without a usable GPU, rather than adding a second, larger download that would suit it better.
+Without a GPU, the model generated 0.6 tokens per second with seven threads. A profile attributed 94% of the time to the 4-bit matrix product, which the WebAssembly build does not optimize. To put this into perspective, take a 50-word answer:
+
+- At 1.76 tokens per word, it is about 88 tokens.
+- On WebGPU at 26.5 tokens per second, it takes about 3.3 s.
+- On WebAssembly at 0.6 tokens per second, it takes about 2.5 minutes. I kept WebAssembly as a slow fallback for browsers without a usable GPU, rather than adding a second, larger download that would suit it better.
 
 #### D) Chrome on Linux hides the GPU
 
@@ -184,9 +220,16 @@ Two more problems came from file sizes. transformers.js never finished loading t
 
 Sinhala conjuncts such as ශ්‍රී are written with an invisible character, the **zero-width joiner (ZWJ)**. Many keyboards leave it out, and the model's tokenizer does not add it back.
 
-*Example.* ශ්‍රී ලංකාව ප්‍රධාන with the ZWJ is 3 tokens, while ශ්රී ලංකාව ප්රධාන without it is 6 fragments the model rarely saw in training.
+*Example.* The same three words, typed two ways:
 
-The obvious fix, adding the ZWJ before every ර and ය, turned out to be wrong for this model. Its vocabulary has exactly 15 clusters with the ZWJ (such as ප්‍ර and ද්‍ය), and other clusters (such as ව්ය) only without it. So the application adds or removes the ZWJ to match that split. On 10,000 sentences, the obvious rule made the text 0.26% longer in tokens, while the matching rule made it 1.57% shorter, and 10.4% shorter on text typed without the ZWJ. In the output, all 143 conjuncts in 25 answers (1,409 words) already carried the ZWJ, so the display step that joins conjuncts written with a visible virama acts as a safety net.
+- With the ZWJ, ශ්‍රී ලංකාව ප්‍රධාන is 3 tokens.
+- Without it, ශ්රී ලංකාව ප්රධාන is 6 fragments that the model rarely saw in training.
+
+The obvious fix, adding the ZWJ before every ර and ය, turned out to be wrong for this model. Its vocabulary has exactly 15 clusters with the ZWJ (such as ප්‍ර and ද්‍ය), and other clusters (such as ව්ය) only without it. So the application adds or removes the ZWJ to match that split. On 10,000 sentences:
+
+- The obvious rule made the text 0.26% longer in tokens.
+- The matching rule made it 1.57% shorter.
+- On text typed without the ZWJ, the matching rule made it 10.4% shorter. In the output, all 143 conjuncts in 25 answers (1,409 words) already carried the ZWJ, so the display step that joins conjuncts written with a visible virama acts as a safety net.
 
 ```mermaid
 flowchart LR
@@ -204,7 +247,12 @@ flowchart LR
 
 *Text processing around the model, which illustrates how the reader's question is matched to the training data and how the answer stays intact while it streams.*
 
-When our reader types ශ්රී ලංකාවේ අගනුවර කුමක්ද? without the ZWJ, the model therefore receives ශ්‍රී, exactly as it learned it, while the question on screen stays as typed.
+For our reader's question, step by step:
+
+- The reader types ශ්රී ලංකාවේ අගනුවර කුමක්ද? without the ZWJ.
+- The application adds the ZWJ, since ශ්‍රී is one of the 15 clusters the model learned with it.
+- The model receives ශ්‍රී, exactly as it learned it.
+- The question on screen stays as typed.
 
 ### Working offline
 
@@ -241,7 +289,16 @@ sequenceDiagram
 
 *First online visit and a later offline visit, which demonstrates how the app cache and the model cache together let the application answer without a network.*
 
-The download itself is built to fail safely. The worker reads a manifest with the size and SHA-256 hash of every file, checks that the browser allows enough storage, and then streams each file into the cache while it hashes every chunk. A file whose hash does not match is rejected as damaged, a dropped connection gets one retry, and a failed download is removed rather than left half-stored. The application also asks the browser to keep its storage persistent, which reduces the chance that the model is evicted.
+The download itself is built to fail safely:
+
+- The worker reads a manifest with the size and SHA-256 hash of every file.
+- It checks that the browser allows enough storage for the missing files.
+- It streams each file into the cache and hashes every chunk on the way.
+- A file whose hash does not match is rejected as damaged.
+- A dropped connection gets one retry.
+- A failed download is removed rather than left half-stored.
+
+The application also asks the browser to keep its storage persistent, which reduces the chance that the model is evicted.
 
 ```mermaid
 flowchart TB
@@ -280,7 +337,14 @@ The second was size. My first deployment uploaded the application together with 
 403 Forbidden: Storage limit reached for this space (Max: 1 GB)
 ```
 
-The 4-bit model alone is 1.18 GB, so the models now live in their own model repository, and the Space holds only the application. Every release uploads the models first, reads the commit of that upload and builds the application pinned to it. In other words, a released application always downloads exactly the model files it was tested with.
+The 4-bit model alone is 1.18 GB, so the models now live in their own model repository, and the Space holds only the application. Every release then runs in order:
+
+- Upload the models to the model repository.
+- Read the commit of the last change to the model files.
+- Build the application pinned to that commit.
+- Upload the application to the Space.
+
+In other words, a released application always downloads exactly the model files it was tested with.
 
 ```mermaid
 flowchart LR

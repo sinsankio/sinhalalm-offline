@@ -60,14 +60,21 @@ await model.generate({
 
 ### Sinhala input: the zero-width joiner
 
-Sinhala conjuncts such as ශ්‍රී are written with an invisible zero-width joiner (ZWJ), which many keyboards leave out. The tokenizer does not add it back, so ශ්‍රී ලංකාව ප්‍රධාන is 3 tokens with the ZWJ and 6 without it.
+Sinhala conjuncts such as ශ්‍රී are written with an invisible zero-width joiner (ZWJ), which many keyboards leave out. The tokenizer does not add it back. For example, the same three words typed two ways:
+
+- With the ZWJ, ශ්‍රී ලංකාව ප්‍රධාන is 3 tokens.
+- Without it, ශ්රී ලංකාව ප්රධාන is 6 tokens.
 
 The vocabulary contains exactly 15 clusters with the ZWJ, and other clusters only without it:
 
 - With the ZWJ: ප්‍ර, ත්‍ර, ක්‍ර, ග්‍ර, ශ්‍ර, ද්‍ර, ඝ්‍ර, ධ්‍ය, ද්‍ය, ශ්‍ය, ජ්‍ය, ඛ්‍ය, භ්‍ය, ට්‍ය, ෂ්‍ය
 - Without it: every other cluster of a virama followed by ර or ය, such as ව්ය and ත්ය
 
-Offline සිංහල adds the ZWJ in the 15 clusters and removes it everywhere else before tokenizing. On 10,000 Sinhala sentences, this reduced the number of tokens by 1.57%, and by 10.4% on text typed without the ZWJ, while adding the ZWJ to every cluster increased it by 0.26%.
+Offline සිංහල adds the ZWJ in the 15 clusters and removes it everywhere else before tokenizing. On 10,000 Sinhala sentences:
+
+- This rule reduced the number of tokens by 1.57%.
+- On text typed without the ZWJ, it reduced them by 10.4%.
+- Adding the ZWJ to every cluster instead increased them by 0.26%.
 
 ### How the files were made
 
