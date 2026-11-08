@@ -38,7 +38,6 @@ jobs:
           path: |
             golden/generated
             build/stamps/tokenizer.sha256
-            ~/.cache/huggingface
           key: tokenizer-${{ hashFiles('convert/make_golden.py', 'convert/sinhalallm.py', 'uv.lock') }}
 
       - name: Install dependencies

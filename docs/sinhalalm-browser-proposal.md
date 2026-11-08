@@ -378,6 +378,7 @@ The offline layer is added with `vite-plugin-pwa` (Workbox), which caches the ap
 
 ```
 sinhalalm-web/
+├── .github/workflows/        # CI checks and live browser tests on GitHub
 ├── convert/                  # Python, build time
 │   ├── sinhalallm.py         # pinned source, config translation, loaders
 │   ├── parity_check.py       # gate 1
