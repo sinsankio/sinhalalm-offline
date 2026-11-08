@@ -6,7 +6,7 @@ In this article, I break down how I built **Offline සිංහල**, an applic
 
 - Try it: [Offline සිංහල on Hugging Face Spaces](https://huggingface.co/spaces/sinsankio/sinhalalm-offline)
 - The browser-ready model files: [sinsankio/sinhalallm-1.7b-onnx-web](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web)
-- The evaluation results as tables: [[NEEDS INPUT: link to the results dataset once it is published]]
+- The evaluation results as tables: [sinsankio/sinhalallm-1.7b-onnx-web-results](https://huggingface.co/datasets/sinsankio/sinhalallm-1.7b-onnx-web-results)
 
 Rather than writing a custom runtime, I treated the deployment as a sequence of transformations, where each step must reproduce the output of the previous step before the next one begins. Throughout the article, one question follows the model through every step: a reader types ශ්‍රී ලංකාවේ අගනුවර කුමක්ද? ("What is the capital of Sri Lanka?"), and expects a correct Sinhala answer on screen without an internet connection.
 
