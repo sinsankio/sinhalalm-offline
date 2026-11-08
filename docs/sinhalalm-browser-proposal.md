@@ -84,6 +84,12 @@ Before designing the system, we inspected the configuration files, the tokenizer
 | S15 | A 2.48 GB data file never finishes loading. | transformers.js loaded the q8 graph file, but its single data file never reported progress. | q8 is packaged as two data files of 1.24 GB, which load in 13 s. |
 | S16 | Chrome cannot cache a 1.18 GB file from memory. | `Cache.put` failed for the data file when transformers.js stored it from its buffer, so the model was downloaded on every visit. | The worker streams the model files into Cache Storage before loading them. |
 | S17 | A nearly full disk stops downloads early. | With 6 GB free, Chrome reported an 11.9 GB quota but refused to store q8 after 2.15 GB. | The application checks the quota, removes partial downloads and explains that the disk may be too full. |
+| S18 | A Hugging Face Space holds at most 1 GB. | Uploading the application with the models failed with "Storage limit reached for this space (Max: 1 GB)"; the q4 package alone is 1.18 GB. | The models live in the model repository `sinsankio/sinhalallm-1.7b-onnx-web`, and the Space holds only the application (Section 7.1). |
+| S19 | A private Space needs a signed address. | A private static Space opens only with a short-lived token from `/api/spaces/{id}/jwt`, passed as `?__sign=<token>`. | `make e2e-live` reads the token from a file given in `SINHALALM_E2E_SIGN_FILE`, so it never appears in a command line or a log. |
+| S20 | Chrome reports a dropped connection like a full disk. | `Cache.put` fails with the same network error for both, and the worker reported every such error as a storage problem, although the disk had 23 GB free. | Only `QuotaExceededError` gives the storage message; other failures name the file that stopped, and a file is downloaded once more after a network or server error. |
+| S21 | The Hub sends `tokenizer.json` compressed and without a size. | A HEAD request returned no `Content-Length` for that file, so the total was unknown and no progress bar appeared on the live Space. | The worker takes the sizes from `manifest.json` and sends no HEAD requests. |
+| S22 | transformers.js asks for `tokenizer_config.json` on `main`. | transformers.js 4.3.1 checks that the file exists without the revision passed to `from_pretrained`, so the application failed to load offline. | The worker writes the pinned commit into `env.remotePathTemplate`. |
+| S23 | A model card commit would force a new download. | `make deploy` pinned the application to the latest commit of the model repository, and the worker removes the cached files of every other revision. | The application is pinned to the last commit that changed `manifest.json`. |
 
 In other words, the inspection changes the project from "port a custom model and its tokenizer" into "load a standard model correctly and keep Sinhala text intact". This is because S4 removes the tokenizer port, while S1, S2 and S9 move the risk into configuration, file layout and text handling, which is where a Sinhala-specific system is most likely to fail silently.
 
@@ -484,7 +490,7 @@ The measured values are listed in [browser-runtime.md](findings/browser-runtime.
 
 Multi-threaded WASM requires `SharedArrayBuffer`, which browsers only enable on cross-origin isolated pages. This makes the response headers `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` a hard requirement for good WASM performance.
 
-The project is hosted on a Hugging Face static Space, which accepts these headers through the `custom_headers` key of its configuration. Model files larger than 10 MB are tracked with `git-xet`. Whether the Space is cross-origin isolated inside the iframe on huggingface.co, and how service workers behave there, is verified on a live Space before release; the offline reader is expected to use the direct `.hf.space` URL.
+The project is hosted on a Hugging Face static Space, which accepts these headers through the `custom_headers` key of its configuration. On the live Space, the direct `.hf.space` address is cross-origin isolated, the service worker controls the page after the first reload, and the application reloads without a connection; the offline reader uses that address. A Space holds at most 1 GB (S18), so the model files live in the model repository `sinsankio/sinhalallm-1.7b-onnx-web`, uploaded through Xet, and the application is pinned to the last commit that changed the model files (S23). The live browser tests found three more problems that the local server could not show (S20–S22). All of them are fixed, and all browser tests pass on the Space. The details are in [hosting.md](findings/hosting.md).
 
 #### 7.2 CI/CD pipeline
 
@@ -493,7 +499,7 @@ The pipeline runs locally through a Makefile (`make ci`) rather than on a hosted
 1. **Convert**: runs the reference outputs, parity gates 1 and 2, quantization and the quality gate on the CPU, and writes the model artifacts to the model store.
 2. **Tokenizer**: generates golden cases in Python and runs the transformers.js parity test in Node.js.
 3. **Build and test**: builds the web application and runs unit and Playwright tests, including gate 4 and the offline test.
-4. **Deploy**: on a version tag, `make deploy` publishes the application and the model files under a new versioned path.
+4. **Deploy**: on a version tag, `make deploy` uploads the model files to the model repository, builds the application pinned to their commit and uploads it to the Space. `make e2e-live` then runs the browser tests against the Space.
 
 ```mermaid
 flowchart LR

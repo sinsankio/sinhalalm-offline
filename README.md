@@ -8,6 +8,8 @@ The project started with the HelaAI SinhalaLM models, which were replaced after 
 
 The full design is described in the [project proposal](docs/sinhalalm-browser-proposal.md).
 
+The application is live at [sinsankio-sinhalalm-offline.static.hf.space](https://sinsankio-sinhalalm-offline.static.hf.space), and the models it downloads are published in [sinsankio/sinhalallm-1.7b-onnx-web](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web).
+
 ### How it works
 
 Rather than porting a custom runtime, the project treats the deployment as a sequence of verifiable transformations. Each step must reproduce the output of the previous step within a defined tolerance before the next step begins.
@@ -28,7 +30,7 @@ Rather than porting a custom runtime, the project treats the deployment as a seq
 | 2 | Tokenizer parity (gate 3) and ZWJ handling | Done |
 | 3 | ONNX export (gate 2), quantization and RQ1 | Done |
 | 4 | Browser application, offline mode, gate 4, Diagnostics tab and acceptance targets | Done |
-| 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Planned |
+| 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Live; all browser tests pass on the Space, awaiting acceptance |
 | 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned; the ZWJ in the output is measured |
 
 Research results are summarized in [FINDINGS.md](FINDINGS.md), the answers of the quantization candidates are compared in [docs/quantization-comparison.md](docs/quantization-comparison.md), the answers of SinhalaLLM-1.7B on the golden questions are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
@@ -97,6 +99,16 @@ google-chrome --user-data-dir=$HOME/.sinhalalm-chrome \
 ```
 
 These flags enable WebGPU features that Chrome has not yet approved for Linux, so use this profile only for this application.
+
+### Deployment
+
+```bash
+git tag -a v0.1.0 -m "..."  # deploy needs a version tag on the current commit
+make deploy                  # make ci, models to the model repository, application to the Space
+make e2e-live                # the browser tests against the deployed Space
+```
+
+`make deploy` needs a Hugging Face write token in `~/.cache/huggingface/token`. It uploads the model package and its card to `sinsankio/sinhalallm-1.7b-onnx-web`, builds the application pinned to the last commit that changed the model files, and uploads the application to the static Space `sinsankio/sinhalalm-offline`. A Space holds at most 1 GB, so the models cannot live in the Space itself. The hosting checks and the problems the live tests found are recorded in [hosting.md](docs/findings/hosting.md).
 
 ### Model store
 
