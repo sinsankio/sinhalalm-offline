@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### fix/download-errors — Interrupted downloads were reported as a full disk
+
+#### Fixed
+
+- The first browser test against the live Space failed with "The model (1.19 GB) could not be stored on this device", with 23 GB free on the disk and a 10.7 GB quota. The worker reported every `Cache.put` error as a storage problem, but Chrome raises the same error when the connection drops during a download. Only `QuotaExceededError` now gives the storage message. Any other failure says that the download of the named file stopped before it finished, and the original error is kept as the cause and logged in the console.
+- The worker now downloads a file a second time after a network error or a server error (5xx). A damaged file, a missing file or a full quota is not retried.
+
+#### Results
+
+- Two later downloads of the 4-bit model from the Hub on the live origin both finished (about 20 minutes each at 1.1 MB/s), so the first failure could not be reproduced and was most likely a dropped connection.
+- On the local server, with the connection reset once for `tokenizer.json`, the worker retried and the model loaded. With the connection reset every time, it stopped after two attempts with the new message and removed the partial files.
+
 ### feat/q8-default — The 8-bit model as default
 
 #### Changed
