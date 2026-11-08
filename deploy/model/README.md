@@ -22,7 +22,7 @@ Converted and quantized ONNX versions of [SinhalaLLM-1.7B](https://huggingface.c
 | 8-bit (`q8`), default on WebGPU | `onnx/model_quantized.onnx` with two data files | 2.48 GB | 115.5 (+2.0% against fp32) |
 | 4-bit (`q4`), fallback | `onnx/model_q4.onnx` with one data file | 1.18 GB | 158.0 (+39.6% against fp32) |
 
-For comparison, the original model in fp32 has a perplexity of 113.2 on the same sentences, and the author's 4-bit GGUF release (Q4_K_M) 195.0. Lower is better. `manifest.json` lists the size and SHA-256 hash of every file.
+For comparison, the original model in fp32 has a perplexity of 113.2 on the same sentences, and the author's 4-bit GGUF release (Q4_K_M) 195.0. Lower is better. Both variants were shipped only after passing two conditions: a perplexity no higher than the author's Q4_K_M release on the same sentences, and a review of their answers by a native speaker. `manifest.json` lists the size and SHA-256 hash of every file.
 
 ### Usage with transformers.js
 
@@ -55,6 +55,7 @@ await model.generate({
 - The sampling settings above are the defaults of Offline සිංහල.
 - Keep the question and the answer within 1,024 tokens. The model was trained with a context of 2,048 tokens.
 - Generation stops at `<|im_end|>` or `<|endoftext|>`, which `generation_config.json` lists.
+- To pin a revision, also write it into `env.remotePathTemplate` (for example `{model}/resolve/<commit>/`). transformers.js 4.3.1 checks for `tokenizer_config.json` without the revision passed to `from_pretrained`, so it would read that file from `main`, and fail offline.
 - On WebAssembly (no GPU), use `q4`. The 8-bit model has no fast WebAssembly kernel, and the 4-bit model generates about 0.5 to 0.6 tokens per second there.
 
 ### Sinhala input: the zero-width joiner
@@ -69,6 +70,25 @@ The vocabulary contains exactly 15 clusters with the ZWJ, and other clusters onl
 Offline සිංහල adds the ZWJ in the 15 clusters and removes it everywhere else before tokenizing. On 10,000 Sinhala sentences, this reduced the number of tokens by 1.57%, and by 10.4% on text typed without the ZWJ, while adding the ZWJ to every cluster increased it by 0.26%.
 
 ### How the files were made
+
+```mermaid
+flowchart TB
+  A["SinhalaLLM-1.7B<br/>bfloat16, 3.48 GB"] --> B["Load with a corrected configuration<br/>RoPE base 130,000"]
+  B --> CB{{"Same logits as the<br/>author's toolchain?"}}
+  CB -->|yes| C["Export to ONNX<br/>fp32, 6.96 GB"]
+  C --> CC{{"Same greedy answers,<br/>logits within 3.46e-5?"}}
+  CC -->|yes| D["Quantize to 8-bit and 4-bit<br/>one sensitive matrix kept in fp32"]
+  D --> CD{{"Perplexity not worse than<br/>the author's Q4_K_M?"}}
+  CD -->|yes| E["Rewrite operators that the<br/>browser runtime lacks"]
+  E --> CE{{"Identical logits?"}}
+  CE -->|yes| F["Web package<br/>separate weight files, manifest with SHA-256"]
+  F --> CF{{"Browser answers match<br/>Python token for token?"}}
+  A --> T["tokenizer.json"]
+  T --> CT{{"Browser tokenizer gives identical<br/>IDs on 10,000 sentences?"}}
+  CT -->|yes| F
+```
+
+![Conversion pipeline with a check after every step](images/conversion-pipeline.svg)
 
 1. **Configuration.** The original configuration was saved with `transformers` 5.19.0, and `transformers` 4.57.6, which the ONNX exporter requires, reads its RoPE base as 10,000 instead of 130,000 without any error. The export uses a corrected configuration, and its logits match the original exactly.
 2. **Export.** The model was exported to ONNX in fp32 with a key-value cache. Its greedy answers match the original on ten test questions, with logits within 3.46e-5 of each position's largest logit.

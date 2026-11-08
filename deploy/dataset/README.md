@@ -53,8 +53,9 @@ Evaluation results from bringing [SinhalaLLM-1.7B](https://huggingface.co/namind
 ### Key results
 
 - fp16 matches fp32, and 8-bit weights lose 2.0% in perplexity.
-- Every plain 4-bit variant loses 164% to 248%, whatever the precision of the head and the embedding, asymmetric quantization, block size 16 or HQQ [[CITE: HQQ quantization method]].
+- Every plain 4-bit variant loses 164% to 248%, whatever the precision of the head and the embedding, asymmetric quantization, block size 16 or HQQ.
 - Keeping one 2048 × 2048 matrix, the value projection of the first layer, in fp32 reduces the 4-bit loss to 32.7% (head tied to the fp32 embedding) or 39.6% (4-bit head and embedding, 1.18 GB). Both are better than the author's own Q4_K_M release on the same sentences (+72.2%).
+- The two shipped models, 8-bit weights and the 1.18 GB 4-bit model, also passed a review of their answers by a native speaker.
 - In Chrome, both shipped models generate about 26.5 tokens per second on WebGPU, while the 4-bit model reaches 0.5 tokens per second on WebAssembly.
 
 ### License and credits
