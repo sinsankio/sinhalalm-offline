@@ -136,6 +136,7 @@ export default function useModel({ onEvent } = {}) {
           dtype: data.dtype ?? current.dtype,
           device: data.device ?? current.device,
           fromCache: data.fromCache ?? current.fromCache,
+          importing: data.importing ?? current.importing,
           error: null,
         }));
       } else if (data.type === "fallback") {
@@ -194,6 +195,19 @@ export default function useModel({ onEvent } = {}) {
     workerRef.current?.postMessage({ type: "load", preferred, dtype: variant });
   }, []);
 
+  const importFiles = useCallback((files) => {
+    const variant = dtypeRef.current;
+    saveVariant(variant);
+    setModel((current) => ({
+      ...INITIAL,
+      dtype: variant,
+      state: "loading",
+      importing: true,
+      cached: current.cached,
+    }));
+    workerRef.current?.postMessage({ type: "load", dtype: variant, files: [...files] });
+  }, []);
+
   const select = useCallback(
     (dtype, cached, preferred) => {
       if (cached) {
@@ -242,5 +256,5 @@ export default function useModel({ onEvent } = {}) {
     workerRef.current?.postMessage({ type: "stop" });
   }, []);
 
-  return { model, storage, answer, load, select, remove, ask, stop };
+  return { model, storage, answer, load, importFiles, select, remove, ask, stop };
 }

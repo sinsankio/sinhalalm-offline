@@ -410,6 +410,19 @@ a {
   margin-top: 12px;
 }
 
+.model-import {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.model-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .gpu-hint {
   margin-top: 10px;
   padding: 10px 12px;

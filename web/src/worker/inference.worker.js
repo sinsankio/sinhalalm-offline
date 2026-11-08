@@ -12,6 +12,7 @@ import {
   DamagedFileError,
   DownloadStatusError,
   downloadError,
+  isStorageError,
   shouldRetry,
   storageMessage,
 } from "./download.js";
@@ -96,7 +97,7 @@ function trackedResponse(response, hasher, onBytes) {
   });
 }
 
-async function readManifest() {
+async function readManifest(fallback = null) {
   try {
     const response = await fetch(modelFileUrl("manifest.json", self.location.origin), {
       cache: "no-store",
@@ -104,7 +105,75 @@ async function readManifest() {
     if (!response.ok) throw new DownloadStatusError("manifest.json", response.status);
     return (await response.json()).files;
   } catch (error) {
+    if (fallback) return fallback;
     throw downloadError(error, { name: "manifest.json", needed: 0 });
+  }
+}
+
+function pickFile(files, name) {
+  const basename = name.split("/").at(-1);
+  const byPath = files.find((file) => {
+    const path = file.webkitRelativePath || file.name;
+    return path === name || path.endsWith(`/${name}`);
+  });
+  return byPath ?? files.find((file) => file.name === basename) ?? null;
+}
+
+async function uploadedManifest(files) {
+  const file = pickFile(files, "manifest.json");
+  if (!file) return null;
+  try {
+    return JSON.parse(await file.text()).files ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function importFiles(dtype, files) {
+  const names = [...COMMON_FILES, ...VARIANTS[dtype].files];
+  const picked = names.map((name) => [name, pickFile(files, name)]);
+  const missing = picked.filter(([, file]) => !file).map(([name]) => name);
+  if (missing.length) {
+    throw new Error(
+      `The selected files do not include ${missing.join(", ")}. Choose the model folder that contains config.json and the onnx folder.`,
+    );
+  }
+  const manifest = await readManifest(await uploadedManifest(files));
+  const cache = await caches.open(env.cacheKey);
+  const base = modelFileUrl("", self.location.origin);
+  const progress = Object.fromEntries(
+    picked.map(([name, file]) => [name, { loaded: 0, total: file.size }]),
+  );
+  const needed = picked.reduce((sum, [, file]) => sum + file.size, 0);
+  const { usage = 0, quota = Infinity } = (await self.navigator.storage?.estimate?.()) ?? {};
+  if (quota - usage < needed) throw new Error(storageMessage(needed, quota - usage));
+  try {
+    for (const [name, file] of picked) {
+      const expected = manifest[name];
+      if (expected?.bytes && expected.bytes !== file.size) throw new DamagedFileError(name);
+      const hasher = await createSHA256();
+      hasher.init();
+      const response = new Response(file.stream(), {
+        headers: {
+          "content-type": file.type || "application/octet-stream",
+          "content-length": `${file.size}`,
+        },
+      });
+      await cache.put(
+        `${base}${name}`,
+        trackedResponse(response, hasher, (loaded) => {
+          progress[name].loaded = loaded;
+          post("progress", combinedProgress(progress));
+        }),
+      );
+      if (expected?.sha256 && hasher.digest("hex") !== expected.sha256)
+        throw new DamagedFileError(name);
+    }
+  } catch (error) {
+    await Promise.all(picked.map(([name]) => cache.delete(`${base}${name}`)));
+    if ((await cache.keys()).length === 0) await caches.delete(env.cacheKey);
+    if (isStorageError(error)) throw new Error(storageMessage(needed), { cause: error });
+    throw error;
   }
 }
 
@@ -184,14 +253,14 @@ async function load(options = {}) {
   try {
     await loadVariant({ ...options, dtype });
   } catch (error) {
-    if (dtype !== DEFAULT_VARIANT) throw error;
+    if (dtype !== DEFAULT_VARIANT || options.files) throw error;
     const reason = error?.message ?? String(error);
     post("fallback", { from: dtype, to: FALLBACK_VARIANT, reason });
     await loadVariant({ ...options, dtype: FALLBACK_VARIANT, fallback: { from: dtype, reason } });
   }
 }
 
-async function loadVariant({ preferred = "auto", dtype, fallback = null }) {
+async function loadVariant({ preferred = "auto", dtype, fallback = null, files = null }) {
   if (!VARIANTS[dtype]) throw new Error(`Unknown model variant: ${dtype}`);
   await unload();
   const started = performance.now();
@@ -199,8 +268,8 @@ async function loadVariant({ preferred = "auto", dtype, fallback = null }) {
   const { device, adapter, gpu } = await chooseDevice(preferred);
   const threads = wasmThreads(self.navigator.hardwareConcurrency, self.crossOriginIsolated);
   env.backends.onnx.wasm.numThreads = threads;
-  post("status", { state: "loading", device, dtype, fromCache });
-  if (!fromCache) await download(dtype);
+  post("status", { state: "loading", device, dtype, fromCache, importing: Boolean(files) });
+  if (!fromCache) await (files ? importFiles(dtype, files) : download(dtype));
 
   tokenizer = await AutoTokenizer.from_pretrained(MODEL_SOURCE.id, {
     revision: MODEL_SOURCE.revision,
@@ -228,6 +297,7 @@ async function loadVariant({ preferred = "auto", dtype, fallback = null }) {
     wasmThreads: device === "wasm" ? threads : null,
     crossOriginIsolated: self.crossOriginIsolated,
     fromCache,
+    imported: Boolean(files) && !fromCache,
     loadMs: Math.round(loadedAt - started),
     warmupMs: Math.round(performance.now() - loadedAt),
     fallback,

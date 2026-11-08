@@ -48,7 +48,9 @@ export default function App() {
   const onEvent = useCallback((event) => {
     addEntry(logEntry(event)).then(() => setLogVersion((version) => version + 1));
   }, []);
-  const { model, storage, answer, load, select, remove, ask, stop } = useModel({ onEvent });
+  const { model, storage, answer, load, importFiles, select, remove, ask, stop } = useModel({
+    onEvent,
+  });
   const ready = model.state === "ready";
 
   useEffect(() => saveSettings(settings), [settings]);
@@ -86,7 +88,13 @@ export default function App() {
             <Notice />
           </section>
           <aside className="column column-side">
-            <StatusBar model={model} locked={answer.streaming} onLoad={load} onSelect={select} />
+            <StatusBar
+              model={model}
+              locked={answer.streaming}
+              onLoad={load}
+              onImport={importFiles}
+              onSelect={select}
+            />
             <StorageControl
               storage={storage}
               model={model}
@@ -99,7 +107,7 @@ export default function App() {
         </main>
       ) : (
         <main>
-          <StatusBar model={model} locked={answer.streaming} onLoad={load} />
+          <StatusBar model={model} locked={answer.streaming} onLoad={load} onImport={importFiles} />
           <Diagnostics
             model={model}
             storage={storage}
