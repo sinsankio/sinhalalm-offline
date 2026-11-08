@@ -106,7 +106,7 @@ flowchart TB
 
 ### Speed and memory
 
-Measured in headless Chrome on an NVIDIA RTX 3060 Laptop GPU and its 8-core processor.
+Measured in Chrome on a laptop with a mid-range NVIDIA GPU.
 
 | Variant and backend | Median speed | Median first token | Page memory | Renderer process |
 |---|---|---|---|---|

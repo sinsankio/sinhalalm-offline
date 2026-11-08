@@ -42,7 +42,7 @@ Evaluation results from bringing [SinhalaLLM-1.7B](https://huggingface.co/namind
 
 **`per_sentence`** — the negative log-likelihood, token count and character count of every scored sentence, by its position in the split, so that any two variants can be compared on the same sentences. The sentences themselves are not included; they are in [FLORES+](https://huggingface.co/datasets/openlanguagedata/flores_plus), which requires accepting its terms.
 
-**`browser`** — speed, first-token time, load time and memory of the shipped 4-bit and 8-bit models in headless Chrome on an NVIDIA RTX 3060 Laptop GPU and its 8-core processor.
+**`browser`** — speed, first-token time, load time and memory of the shipped 4-bit and 8-bit models in Chrome on a laptop with a mid-range NVIDIA GPU.
 
 ### Method
 
