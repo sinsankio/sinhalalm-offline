@@ -1,0 +1,19 @@
+flowchart LR
+  subgraph Page["Page (UI thread)"]
+    UI["Question box,<br/>streamed answer"]
+  end
+  subgraph Worker["Web Worker"]
+    TK["transformers.js tokenizer"]
+    GEN["transformers.js generation<br/>key-value cache"]
+  end
+  subgraph ORT["ONNX Runtime Web"]
+    GPU["WebGPU<br/>hardware GPU"]
+    CPU["WebAssembly<br/>CPU threads, slow fallback"]
+  end
+  UI -->|"question, settings"| TK
+  TK --> GEN
+  GEN --> GPU
+  GEN -.->|"no hardware WebGPU"| CPU
+  GEN -->|"text chunks"| UI
+  UI -->|"stop flag in shared memory"| GEN
+  CS[("Cache Storage<br/>model files")] --> GEN

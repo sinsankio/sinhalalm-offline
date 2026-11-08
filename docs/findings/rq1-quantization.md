@@ -74,3 +74,5 @@ On 2026-11-07, the following was decided for the shipped application:
 - **Default variant: q4-v0-small (1.18 GB).** It fits the 1.2 GB download target of NFR5, so the target stays unchanged.
 - **Quality gate.** The 2% margin is replaced by two conditions: the shipped variant's perplexity must not be higher than that of the author's Q4_K_M release on the same FLORES+ sentences, and its answers are reviewed by a native speaker. The first condition runs as `make quality` and is part of `make ci`. On all 1,012 sentences, q4-v0-small passes with a perplexity of 158.0 against 195.0 for Q4_K_M.
 - **q8 as an optional variant.** q8 stays within the original 2% margin, but it generates at 0.26 tokens per second on the CPU. It is offered as a higher-quality option only if the browser benchmarks in RQ2 show that it is fast enough on WebGPU.
+
+On 2026-11-08, Sineth confirmed that a native speaker also reviewed the answers of q8, which by then had become the default on hardware WebGPU. With its perplexity of 115.5 against 195.0 for Q4_K_M on all 1,012 sentences, q8 therefore passes both parts of the quality gate, like q4-v0-small.

@@ -1,0 +1,24 @@
+sequenceDiagram
+  participant B as Browser page
+  participant SW as Service worker
+  participant AC as App cache
+  participant W as Web Worker
+  participant MC as Model cache
+  participant N as Network
+  Note over B,N: First visit, online
+  B->>N: Load the page
+  N-->>B: App files
+  B->>SW: Register
+  SW->>N: Fetch every app file once
+  SW->>AC: Store the app
+  B->>W: Download the model
+  W->>N: Model files from the model repository
+  W->>MC: Stream each file in and check its hash
+  Note over B,N: Later visit, offline
+  B->>SW: Load the page
+  SW->>AC: Look up
+  AC-->>B: App files, no network
+  B->>W: Load the model
+  W->>MC: Look up
+  MC-->>W: Model files, no network
+  W-->>B: Answers generated on this device

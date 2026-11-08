@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/community — Community documentation for Hugging Face
+
+#### Added
+
+- A community article, `docs/community/article.md`, which explains the project and its findings for readers outside the project: choosing the model, moving it into ONNX without changing it, quantization and quality, the problems of the browser runtime, the offline mode, hosting and results. Every technical step comes with an example from the project's own measurements, and the article credits the works that shaped the approach.
+- Six diagrams in `docs/community/diagrams/`, as Mermaid sources and rendered SVG images: the conversion pipeline, the browser runtime, the offline mechanism, the model download, the deployment and the path of a question.
+- An expanded model card in `deploy/model/README.md`, with usage in transformers.js, the ZWJ clusters of the vocabulary, how the files were made, speed and memory, limitations and credits.
+- A results dataset card, `deploy/dataset/README.md`, and `deploy/dataset/export_results.py`, which builds the perplexity, agreement, per-sentence and browser tables from the evaluation reports into the model store.
+- `docs/community/publishing.md`, the steps to publish the article, the model card, the dataset and a collection.
+
+#### Decisions
+
+- The documentation uses plain descriptions instead of the project's internal labels, explains each technical approach with an example and a diagram, and cites only the works that shaped the technical approach.
+- Sineth asked for Mermaid diagrams. The Hugging Face documentation does not mention Mermaid support, and a check of three public cards with well-formed Mermaid blocks (one model card, two dataset cards) showed them as plain code after the page had run its scripts in Chrome. No community article with a Mermaid block was found. The article and the model card therefore embed each diagram as a Mermaid block followed by its rendered image, which stays visible where the block is shown as code.
+- The diagrams are rendered with `@mermaid-js/mermaid-cli` 12.0.0. The first render put the labels into HTML elements inside the SVG, which can disappear when an SVG is shown as an image, so the diagrams are rendered with plain SVG text labels.
+- The first draft of the publishing steps warned that a changed model card would re-pin the application and make every reader download the models again. That pinning is now fixed on the deployment branch, so publishing the card no longer changes the application's model revision.
+- Sineth confirmed that a native speaker reviewed the answers of the 8-bit model too, so the documents state that both shipped models passed both parts of the quality rule. The fact is recorded in the findings.
+- The documents describe four problems found on the live Space and their fixes: a dropped connection reported as a full disk, the missing progress bar, the model failing to load offline because one tokenizer file was requested from the latest version, and the card change that would have re-pinned the application.
+- `make dataset` runs the export with the model store from `local.mk`, and the script stops with a clear message when the evaluation reports are missing.
+- Collections in `huggingface_hub` 0.36.2 accept models, datasets, Spaces, papers and collections, but not articles, so the article is linked from the collection description.
+
 ### fix/deploy-pin — A new model card would force a new download
 
 #### Fixed
