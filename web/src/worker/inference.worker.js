@@ -7,6 +7,14 @@ import {
 } from "@huggingface/transformers";
 import { createSHA256 } from "hash-wasm";
 import { createEntityDecoder, decodeEntities } from "../text/entities.js";
+import {
+  DOWNLOAD_ATTEMPTS,
+  DamagedFileError,
+  DownloadStatusError,
+  downloadError,
+  shouldRetry,
+  storageMessage,
+} from "./download.js";
 import { buildMessages, generationOptions, generationStats, stopReason } from "./generation.js";
 import { describeAdapter, gpuSupport, wasmThreads, webgpuUnavailableMessage } from "./runtime.js";
 import { HUB_HOST, MODEL_SOURCE } from "./source.js";
@@ -123,43 +131,40 @@ async function download(dtype) {
   const { usage = 0, quota = Infinity } = (await self.navigator.storage?.estimate?.()) ?? {};
   if (quota - usage < needed) throw new Error(storageMessage(needed, quota - usage));
   const base = modelFileUrl("", self.location.origin);
+  let name = "manifest.json";
   try {
     const hashes = await expectedHashes();
     for (const url of missing) {
-      const name = url.slice(base.length);
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Could not download ${name} (${response.status}).`);
-      }
-      const hasher = await createSHA256();
-      hasher.init();
-      await cache.put(
-        url,
-        trackedResponse(response, hasher, (loaded) => {
-          files[url].loaded = loaded;
-          post("progress", combinedProgress(files));
-        }),
-      );
-      if (hashes[name] && hasher.digest("hex") !== hashes[name]) {
-        throw new Error(`The downloaded file ${name} is damaged. Please try again.`);
-      }
+      name = url.slice(base.length);
+      await downloadFile(cache, url, name, hashes[name], (loaded) => {
+        files[url].loaded = loaded;
+        post("progress", combinedProgress(files));
+      });
     }
   } catch (error) {
     await Promise.all(missing.map((url) => cache.delete(url)));
     if ((await cache.keys()).length === 0) await caches.delete(env.cacheKey);
-    if (error?.name === "QuotaExceededError" || /Cache\.put/.test(error?.message ?? "")) {
-      throw new Error(storageMessage(needed), { cause: error });
-    }
-    throw error;
+    throw downloadError(error, { name, needed });
   }
 }
 
-function storageMessage(needed, available) {
-  const size = `${(needed / 1e9).toFixed(2)} GB`;
-  const room = Number.isFinite(available)
-    ? ` The browser allows ${(Math.max(available, 0) / 1e9).toFixed(2)} GB more.`
-    : "";
-  return `The model (${size}) could not be stored on this device.${room} Free some disk space or delete the other model variant, then try again.`;
+async function downloadFile(cache, url, name, expected, onBytes) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new DownloadStatusError(name, response.status);
+      const hasher = await createSHA256();
+      hasher.init();
+      await cache.put(url, trackedResponse(response, hasher, onBytes));
+      if (expected && hasher.digest("hex") !== expected) throw new DamagedFileError(name);
+      return;
+    } catch (error) {
+      await cache.delete(url);
+      if (attempt >= DOWNLOAD_ATTEMPTS || !shouldRetry(error)) throw error;
+      console.warn(`Retrying ${name}:`, error);
+      onBytes(0);
+    }
+  }
 }
 
 async function warmUp() {
@@ -330,6 +335,7 @@ self.addEventListener("message", async ({ data }) => {
     else if (data.type === "remove") await removeDownloaded(data);
   } catch (error) {
     const message = error?.message ?? String(error);
+    if (error?.cause) console.error(error.cause);
     if (data.type === "generate") post("answer-error", { id: data.id, message });
     else post("error", { message });
   }
