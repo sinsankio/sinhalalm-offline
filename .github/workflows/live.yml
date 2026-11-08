@@ -1,0 +1,55 @@
+name: Live Space
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LIVE_URL: https://sinsankio-sinhalalm-offline.static.hf.space
+  MODEL_REPO: sinsankio/sinhalallm-1.7b-onnx-web
+
+jobs:
+  e2e-live:
+    name: Browser tests against the Space
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npx -y npm@11.21.1 ci
+
+      - name: Find the pinned model commit
+        id: model
+        run: |
+          revision=$(curl -sf -X POST "https://huggingface.co/api/models/${MODEL_REPO}/paths-info/main" \
+            -d "paths=manifest.json&expand=true" | jq -r '.[0].lastCommit.id')
+          test -n "$revision" && test "$revision" != null
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Browser tests
+        working-directory: web
+        env:
+          SINHALALM_E2E_URL: ${{ env.LIVE_URL }}
+          SINHALALM_E2E_MODEL: ${{ env.MODEL_REPO }}@${{ steps.model.outputs.revision }}
+          SINHALALM_EXPECTED_GREEDY: ${{ github.workspace }}/golden/expected-greedy.json
+        run: npx -y npm@11.21.1 exec -- playwright test
+
+      - name: Upload the test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: web/test-results
+          retention-days: 14

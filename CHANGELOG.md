@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### ci/github-actions — Checks and live browser tests on GitHub
+
+#### Added
+
+- The `CI` workflow runs `make setup`, `make lint`, `make test-web` and the production build on every push to `main` and every pull request. It caches the tokenizer corpus between runs.
+- The `Live Space` workflow runs the browser tests against the deployed Space every Monday and on demand. It finds the pinned model commit through the Hub API (the last commit that changed `manifest.json`), and uploads the test results when a test fails.
+- `golden/expected-greedy.json` is a committed copy of the expected greedy answers, so the browser tests no longer need the model store. The package parity step fails when the copy differs from the store. With `SINHALALM_E2E_MODEL=<repo>@<commit>`, the browser tests load the tokenizer from the Hub instead of the local model link. `make e2e-live` uses the committed copy.
+
+#### Results
+
+- The tokenizer from the Hub at `fd97e545` decodes all ten expected answers exactly like the local one.
+- In a fresh clone without the model store, `make setup` and `make lint` passed. Building the tokenizer corpus downloads every file of the original model, including the 3.5 GB of weights, and on this machine's connection it failed after 30 minutes with a network error from the Hub's file storage. In CI, the corpus is built once and then restored from the cache. Changing the download to skip the weights would edit `convert/sinhalallm.py`, which every pipeline step hashes, so it is left for a change that rebuilds the pipeline anyway.
+
+#### Decisions
+
+- Sineth chose to run the checks without model weights and the live browser tests on GitHub. The conversion, quantization and quality gates stay local, since they need the model store and more memory than a hosted runner has.
+
 ### docs/github-readme and docs/cross-links — README for GitHub and links between the published pieces
 
 #### Changed

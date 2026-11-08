@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, unit tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.17"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Restore the tokenizer corpus
+        uses: actions/cache@v4
+        with:
+          path: |
+            golden/generated
+            build/stamps/tokenizer.sha256
+          key: tokenizer-${{ hashFiles('convert/make_golden.py', 'convert/sinhalallm.py', 'uv.lock') }}
+
+      - name: Install dependencies
+        run: make setup
+
+      - name: Lint
+        run: make lint
+
+      - name: Unit tests and tokenizer parity
+        run: make test-web
+
+      - name: Build
+        working-directory: web
+        run: npx -y npm@11.21.1 run build

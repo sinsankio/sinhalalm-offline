@@ -11,6 +11,8 @@
 [![Model](https://img.shields.io/badge/%F0%9F%A4%97%20Model-ONNX%20web-ffcc4d)](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web)
 [![Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-Results-ffcc4d)](https://huggingface.co/datasets/sinsankio/sinhalallm-1.7b-onnx-web-results)
 [![Release](https://img.shields.io/badge/release-v0.1.0-555)](CHANGELOG.md)
+[![CI](https://github.com/sinsankio/sinhalalm-offline/actions/workflows/ci.yml/badge.svg)](https://github.com/sinsankio/sinhalalm-offline/actions/workflows/ci.yml)
+[![Live Space](https://github.com/sinsankio/sinhalalm-offline/actions/workflows/live.yml/badge.svg)](https://github.com/sinsankio/sinhalalm-offline/actions/workflows/live.yml)
 
 [Overview](#overview) · [On Hugging Face](#on-hugging-face) · [Results](#results) · [Getting started](#getting-started) · [Deployment](#deployment) · [Documentation](#documentation)
 
@@ -160,6 +162,7 @@ make article                 # publish the article as its own static Space
 
 ```
 sinhalalm-web/
+├── .github/workflows/  # CI checks and live browser tests on GitHub
 ├── convert/          # build-time pipeline: conversion, export, quantization, evaluation
 ├── golden/           # fixtures shared by the Python and JavaScript tests
 ├── deploy/           # deployment scripts and the model, Space, dataset and article cards
@@ -188,6 +191,13 @@ sinhalalm-web/
 | 6 | Speed benchmarks on more devices and a native-speaker evaluation of the ZWJ handling | Planned |
 
 Every feature or fix is developed on its own branch and merged into `main` only after `make ci` passes, and features visible in the browser are also tested manually before they are merged.
+
+GitHub Actions runs the parts of the pipeline that need no model weights:
+
+- **CI**, on every push to `main` and every pull request: linting, the web unit tests with tokenizer parity on 10,000 sentences, and the production build.
+- **Live Space**, every Monday and on demand: the browser tests against the deployed Space, which download the 4-bit model from the Hub at its pinned commit.
+
+The conversion, quantization and quality gates need the model store and more memory than a hosted runner has, so they run locally with `make ci`.
 
 ## Documentation
 

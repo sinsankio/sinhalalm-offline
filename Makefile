@@ -35,6 +35,7 @@ WEB_MODEL := sinhalallm-1.7b
 WEB_PACKAGE := $(SINHALALM_STORE)/web/$(WEB_MODEL)/v2.1/manifest.json
 EXPECTED_GREEDY := $(SINHALALM_STORE)/web/expected-greedy.json
 PACKAGE_PARITY := $(SINHALALM_STORE)/web/package-parity.ok
+EXPECTED_GREEDY_COPY := golden/expected-greedy.json
 E2E_OK := $(SINHALALM_STORE)/web/e2e.ok
 LIVE_URL ?= https://sinsankio-sinhalalm-offline.static.hf.space
 MODEL_LINK := $(WEB)/public/models/$(WEB_MODEL)
@@ -138,6 +139,7 @@ $(WEB_PACKAGE): $(QUALITY_GATE) $(QUALITY_GATE_Q8) $(STAMPS)/package.sha256
 
 $(PACKAGE_PARITY): $(WEB_PACKAGE) $(STAMPS)/parity.sha256 | link-models
 	cd $(WEB) && SINHALALM_EXPECTED_GREEDY=$(EXPECTED_GREEDY) $(NPM) exec -- vitest run tests/package-parity.test.js
+	@cmp -s $(EXPECTED_GREEDY) $(EXPECTED_GREEDY_COPY) || { echo "$(EXPECTED_GREEDY_COPY) is out of date: cp $(EXPECTED_GREEDY) $(EXPECTED_GREEDY_COPY)"; exit 1; }
 	touch $@
 
 $(E2E_OK): $(PACKAGE_PARITY) $(STAMPS)/e2e.sha256 | link-models
@@ -195,8 +197,8 @@ e2e: $(E2E_OK) ## Browser tests: gate 4, offline mode and the main flows (downlo
 article: ## Publish the community article as the static Space sinsankio/sinhalalm-offline-article (needs a write token)
 	$(PY) deploy/deploy_article.py
 
-e2e-live: $(EXPECTED_GREEDY) | link-models ## Browser tests against the deployed Space (SINHALALM_E2E_SIGN_FILE for a private Space)
-	cd $(WEB) && SINHALALM_E2E_URL=$(LIVE_URL) SINHALALM_EXPECTED_GREEDY=$(EXPECTED_GREEDY) $(NPM) exec -- playwright test
+e2e-live: | link-models ## Browser tests against the deployed Space (SINHALALM_E2E_SIGN_FILE for a private Space)
+	cd $(WEB) && SINHALALM_E2E_URL=$(LIVE_URL) SINHALALM_EXPECTED_GREEDY=$(abspath $(EXPECTED_GREEDY_COPY)) $(NPM) exec -- playwright test
 
 ci: lint convert onnx quantize quality check-package test-web e2e ## Run the local CI pipeline
 
