@@ -40,6 +40,8 @@ sinhalalm-web/
 ├── convert/          # Python build-time pipeline: conversion, export, quantization, evaluation
 ├── golden/           # fixtures shared by the Python and JavaScript tests
 ├── docs/             # proposal and per-topic findings
+│   └── community/    # Hugging Face article, diagrams and publishing steps
+├── deploy/           # deployment to the Hub, model, Space and dataset cards
 ├── web/
 │   ├── src/text/     # ZWJ handling and HTML entity decoding
 │   ├── src/worker/   # inference worker: download, variants, generation

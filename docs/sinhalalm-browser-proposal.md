@@ -390,6 +390,14 @@ sinhalalm-web/
 │   ├── public/models/<model>/<version>/
 │   ├── tests/                # Vitest unit tests, gate 3, package parity
 │   └── e2e/                  # Playwright tests, gate 4, offline test
+├── deploy/
+│   ├── deploy_space.py       # models to the model repo, app to the Space
+│   ├── model/README.md       # model card template
+│   ├── space/README.md       # Space card template
+│   └── dataset/              # results dataset card and table export
+├── docs/
+│   ├── findings/             # one document per finding
+│   └── community/            # Hugging Face article, diagrams, publishing steps
 └── Makefile                  # local CI pipeline
 ```
 

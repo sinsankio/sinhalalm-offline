@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### docs/community — Community documentation for Hugging Face
+
+#### Added
+
+- A community article, `docs/community/article.md`, which explains the project and its findings for readers outside the project: choosing the model, moving it into ONNX without changing it, quantization and quality, the problems of the browser runtime, the offline mode, hosting and results. Every technical step comes with an example from the project's own measurements, and the article credits the works that shaped the approach.
+- Six diagrams in `docs/community/diagrams/`, as Mermaid sources and rendered SVG images: the conversion pipeline, the browser runtime, the offline mechanism, the model download, the deployment and the path of a question.
+- An expanded model card in `deploy/model/README.md`, with usage in transformers.js, the ZWJ clusters of the vocabulary, how the files were made, speed and memory, limitations and credits.
+- A results dataset card, `deploy/dataset/README.md`, and `deploy/dataset/export_results.py`, which builds the perplexity, agreement, per-sentence and browser tables from the evaluation reports into the model store.
+- `docs/community/publishing.md`, the steps to publish the article, the model card, the dataset and a collection.
+
+#### Decisions
+
+- The documentation uses plain descriptions instead of the project's internal labels, explains each technical approach with an example and a diagram, and cites only the works that shaped the technical approach.
+- The Hugging Face documentation does not mention Mermaid support for articles, model cards or dataset cards, so the diagrams are published as SVG images, with the Mermaid sources kept for edits. They are rendered with `@mermaid-js/mermaid-cli` 12.0.0. The first render put the labels into HTML elements inside the SVG, which can disappear when an SVG is shown as an image, so the diagrams are rendered with plain SVG text labels.
+- A changed model card is a new commit on the model repository, and `deploy_space.py` pins the application to the latest commit, so publishing the card with the current script would make every reader download the models again. The publishing steps therefore start with fixing the pinning.
+- `make dataset` runs the export with the model store from `local.mk`, and the script stops with a clear message when the evaluation reports are missing.
+- Collections in `huggingface_hub` 0.36.2 accept models, datasets, Spaces, papers and collections, but not articles, so the article is linked from the collection description.
+
 ### fix/download-progress — No progress bar for downloads from the Hub
 
 #### Fixed
