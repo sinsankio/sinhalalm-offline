@@ -1,133 +1,206 @@
-# SinhalaLM Web — Offline Sinhala Question Answering in the Browser
+<div align="center">
 
-For a long period of time, running a language model meant sending text to a server and waiting for a response. SinhalaLLM-1.7B is an open, instruction-tuned Sinhala language model built on SmolLM2-1.7B, with a tokenizer extended by 14,192 Sinhala tokens. At 1.74B parameters, it is a candidate for client-side inference on desktop and laptop computers.
+<img src="web/public/icon.svg" alt="Offline සිංහල" width="96" />
 
-This project runs SinhalaLLM-1.7B fully offline in the browser for single-turn Sinhala question answering. After the first load, no server and no network connection are needed.
+# Offline සිංහල
 
-The project started with the HelaAI SinhalaLM models, which were replaced after their answers did not reach a satisfactory quality. The reasons and the comparison of alternatives are recorded in [model-selection.md](docs/findings/model-selection.md).
+**Sinhala question answering that runs fully offline in your browser**
 
-The full design is described in the [project proposal](docs/sinhalalm-browser-proposal.md).
+[![Try it on Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Space-Try%20it-287f53)](https://huggingface.co/spaces/sinsankio/sinhalalm-offline)
+[![Article](https://img.shields.io/badge/%F0%9F%A4%97%20Article-How%20it%20was%20built-287f53)](https://huggingface.co/spaces/sinsankio/sinhalalm-offline-article)
+[![Model](https://img.shields.io/badge/%F0%9F%A4%97%20Model-ONNX%20web-ffcc4d)](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web)
+[![Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-Results-ffcc4d)](https://huggingface.co/datasets/sinsankio/sinhalallm-1.7b-onnx-web-results)
+[![Release](https://img.shields.io/badge/release-v0.1.0-555)](CHANGELOG.md)
 
-The application is live at [sinsankio-sinhalalm-offline.static.hf.space](https://sinsankio-sinhalalm-offline.static.hf.space), and the models it downloads are published in [sinsankio/sinhalallm-1.7b-onnx-web](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web).
+[Overview](#overview) · [On Hugging Face](#on-hugging-face) · [Results](#results) · [Getting started](#getting-started) · [Deployment](#deployment) · [Documentation](#documentation)
 
-### How it works
+</div>
 
-Rather than porting a custom runtime, the project treats the deployment as a sequence of verifiable transformations. Each step must reproduce the output of the previous step within a defined tolerance before the next step begins.
+## Overview
 
-- **Reference load** — the model is loaded in the export toolchain with a translated configuration, since `transformers` 4.57 otherwise reads its RoPE base as 10000 instead of 130000, and gate 1 verifies the load against `transformers` 5.19.
-- **ONNX export and quantization** — the model is exported with key-value caching and quantized into fp16, q8 and q4 variants. Operators that the browser runtime lacks or runs on the CPU are rewritten into equivalent ones, with identical logits.
-- **Tokenizer** — the transformers.js tokenizer is verified against the Python tokenizer, so that the browser produces the exact token IDs the model was trained on.
-- **ZWJ handling** — the zero-width joiner in the reader's question is normalized to the 15 conjunct clusters the model learned with it (for example, `ප්ර` becomes `ප්‍ර`, while `ව්‍ය` becomes `ව්ය`), and HTML entities are decoded in the output.
-- **Browser runtime** — transformers.js runs the model in a Web Worker on WebGPU, with a slower WebAssembly fallback. The 8-bit model (2.48 GB) is the default on hardware WebGPU, and the 4-bit model (1.19 GB) is used without it or when the 8-bit model cannot be stored or loaded. Both store their weights in separate data files, which keeps the page memory low, and the answers are streamed with the ZWJ kept in conjuncts.
-- **Offline layer** — a service worker keeps the page available without a connection, and the worker streams the model files into the browser's Cache Storage, where they stay until the reader deletes them.
+For a long period of time, running a language model meant sending text to a server and waiting for a response. This project runs [SinhalaLLM-1.7B](https://huggingface.co/namindu94/SinhalaLLM-1.7B), an open, instruction-tuned Sinhala model by Namindu Sanchila Nadeeshan, entirely inside the browser for single-turn Sinhala question answering. After the model is downloaded once, no server and no network connection are needed.
 
-### Project status
+Rather than porting a custom runtime, the project treats the deployment as a sequence of verifiable transformations: each step must reproduce the output of the previous one before the next step begins.
 
-| Phase | Scope | Status |
+- **Faithful conversion.** The model is exported to ONNX and checked against the original after every step, down to identical greedy answers in the browser and in Python.
+- **Small enough to download.** An 8-bit model (2.48 GB) and a 4-bit model (1.19 GB), both checked against the author's own 4-bit release and reviewed by a native speaker.
+- **Fast on WebGPU.** About 26 tokens per second on a laptop GPU, with WebAssembly as a slow fallback for browsers without one.
+- **Sinhala-aware text handling.** The invisible zero-width joiner (ZWJ) in conjuncts such as ශ්‍රී is matched to the 15 clusters the model learned with it, so text typed without it reaches the model as it was trained.
+- **Truly offline.** A service worker keeps the application available, and the model files are streamed into Cache Storage with a SHA-256 check of every file.
+
+> [!WARNING]
+> SinhalaLLM-1.7B often gets facts wrong from memory. Its answers are unverified, and it is not suitable for medical, legal or financial questions.
+
+## On Hugging Face
+
+| | Link | What it is |
 |---|---|---|
-| 0 | Project bootstrap and toolchain checks | Done |
-| 1 | Model selection, reference outputs and configuration translation (gate 1) | Done |
-| 2 | Tokenizer parity (gate 3) and ZWJ handling | Done |
-| 3 | ONNX export (gate 2), quantization and RQ1 | Done |
-| 4 | Browser application, offline mode, gate 4, Diagnostics tab and acceptance targets | Done |
-| 5 | Hosting checks on a live Space and deployment to a Hugging Face static Space | Done |
-| 6 | Benchmarks (RQ2) and ZWJ fidelity evaluation (RQ3) | Planned; the ZWJ in the output is measured |
+| Application | [sinsankio/sinhalalm-offline](https://huggingface.co/spaces/sinsankio/sinhalalm-offline) | The live application, as a static Space |
+| Article | [sinsankio/sinhalalm-offline-article](https://huggingface.co/spaces/sinsankio/sinhalalm-offline-article) | How it was built, step by step, with diagrams |
+| Model files | [sinsankio/sinhalallm-1.7b-onnx-web](https://huggingface.co/sinsankio/sinhalallm-1.7b-onnx-web) | The browser-ready 8-bit and 4-bit ONNX models, loadable with transformers.js |
+| Results | [sinsankio/sinhalallm-1.7b-onnx-web-results](https://huggingface.co/datasets/sinsankio/sinhalallm-1.7b-onnx-web-results) | Quality of every quantized variant tried, and browser speed and memory |
+| Collection | [Offline Sinhala question answering in the browser](https://huggingface.co/collections/sinsankio/offline-sinhala-question-answering-in-the-browser) | All of the above, with the original model, on one page |
 
-Research results are summarized in [FINDINGS.md](FINDINGS.md), the answers of the quantization candidates are compared in [docs/quantization-comparison.md](docs/quantization-comparison.md), the answers of SinhalaLLM-1.7B on the golden questions are listed in [docs/model-outputs.md](docs/model-outputs.md), alternative models are compared in [docs/model-comparison.md](docs/model-comparison.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
+## How it works
 
-### Project structure
+```mermaid
+flowchart LR
+  subgraph Build["Build time (Python)"]
+    A["SinhalaLLM-1.7B"] --> B["ONNX export<br/>checked against the original"]
+    B --> C["8-bit and 4-bit quantization<br/>quality gate"]
+    C --> D["Web package<br/>manifest with SHA-256"]
+  end
+  D -->|"make deploy"| M[("Model repository<br/>on the Hub")]
+  subgraph Browser["Browser (no server)"]
+    UI["Page"] -->|question| W["Web Worker<br/>transformers.js"]
+    W --> R["ONNX Runtime Web<br/>WebGPU or WebAssembly"]
+    W -->|"streamed answer"| UI
+    CS[("Cache Storage")] --> W
+  end
+  M -->|"first visit only,<br/>pinned commit"| CS
+```
+
+1. **Build time.** The model is loaded with a corrected configuration, exported to ONNX, quantized and packaged. Operators that the browser runtime lacks, or runs on the processor instead of the GPU, are rewritten into equivalent standard ones with identical logits.
+2. **First visit.** The application asks before downloading, then streams the model files from the model repository into Cache Storage, checking each file's SHA-256 against the manifest. The 8-bit model is the default on hardware WebGPU, and the 4-bit model is used otherwise or when the 8-bit model cannot be stored or loaded.
+3. **Every visit after that.** The service worker serves the application and the worker loads the model from the cache, so questions are answered on the device without a connection.
+
+## Results
+
+Quality on the 1,012 sentences of the FLORES+ Sinhala test set (lower perplexity is better):
+
+| Model | Download | Perplexity | Change |
+|---|---|---|---|
+| Original, fp32 | 6.96 GB | 113.2 | — |
+| 8-bit (default on WebGPU) | 2.48 GB | 115.5 | +2.0% |
+| 4-bit (fallback) | 1.18 GB | 158.0 | +39.6% |
+| Author's Q4_K_M release (reference) | 1.08 GB | 195.0 | +72.2% |
+
+Speed and memory in Chrome on a laptop with a mid-range NVIDIA GPU:
+
+| Model and backend | Median speed | Median first token | Page memory |
+|---|---|---|---|
+| 4-bit, WebGPU | 26.5 tokens/s | 69 ms | 0.09 GB |
+| 8-bit, WebGPU | 26.6 tokens/s | 76 ms | — |
+| 4-bit, WebAssembly | 0.5 to 0.6 tokens/s | — | 1.78 GB |
+
+All results, including every quantized variant that was tried, are in the [results dataset](https://huggingface.co/datasets/sinsankio/sinhalallm-1.7b-onnx-web-results) and in [FINDINGS.md](FINDINGS.md).
+
+## Getting started
+
+### Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) and Python 3.12
+- Node.js 22 or later (npm 11 is pinned through `npx` in the Makefile)
+- `make`
+- Google Chrome, for the browser tests
+
+### Run the application locally
+
+```bash
+make setup    # install the Python and Node dependencies
+make package  # build and package the models (runs the pipeline below)
+make preview  # production build on http://localhost:4173
+```
+
+`make dev` starts a development server on http://localhost:5173, but offline mode needs the production build, since the development server does not register the service worker.
+
+> [!TIP]
+> Chrome on Linux does not enable WebGPU by default, so the application falls back to the much slower WebAssembly backend. To use the GPU, quit Chrome completely and start it with a separate profile:
+>
+> ```bash
+> google-chrome --user-data-dir=$HOME/.sinhalalm-chrome \
+>   --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan
+> ```
+>
+> These flags enable WebGPU features that Chrome has not yet approved for Linux, so use this profile only for this application.
+
+### The build pipeline
+
+The pipeline runs locally through the Makefile, and every step must pass its check before the next one runs. The first run downloads SinhalaLLM-1.7B (about 3.5 GB) at a pinned revision and verifies the SHA-256 hash of every file.
+
+<details>
+<summary>All pipeline targets</summary>
+
+```bash
+make golden         # reference outputs with the reference toolchain (transformers 5.19.0)
+make convert        # verify the export toolchain (transformers 4.57.6) against the reference
+make test-web       # web unit tests, including tokenizer parity on 10,000 sentences
+make onnx           # export fp32 ONNX and check it against the original (needs about 11.5 GB of free memory)
+make quantize       # build the fp16, 8-bit and 4-bit variants (needs about 13 GB of free memory)
+make quality        # quality gates against the author's Q4_K_M release (the 8-bit gate takes about an hour)
+make package        # package the 8-bit and 4-bit models for the web application
+make check-package  # verify the packaged model in transformers.js against Python
+make e2e            # browser tests in Chrome, including identical answers and offline mode
+make rq1            # perplexity and answer agreement of every variant (slow; needs FLORES+ access)
+make dataset        # export the results as dataset tables
+make verify         # rerun the reference outputs and the first check from scratch
+make ci             # the whole local CI pipeline
+make help           # list all targets
+```
+
+</details>
+
+The pipeline uses two Python environments from the same `uv` project, since the model was saved with `transformers` 5.19.0 while the ONNX exporter requires 4.57.6. `make setup` creates both: `.venv` for the export toolchain and `.venv-reference` for the reference. `make ci` reruns a step only when the content of its inputs changes, using content hashes in `build/stamps/`.
+
+> [!NOTE]
+> Checkpoints, converted models and generated logits are large, so they live in a model store outside the repository. It defaults to `build/`, and a `local.mk` file (not committed) can point it elsewhere, for example to an external drive with `MODEL_STORE := /media/<user>/<drive>/sinhalalm-web`. The web application loads the packaged model through the link `web/public/models/sinhalallm-1.7b`, so the store must be available while the application runs locally.
+
+## Deployment
+
+```bash
+git tag -a v0.1.0 -m "..."  # deploy needs a version tag on the current commit
+make deploy                  # make ci, then the models to the model repository and the application to the Space
+make e2e-live                # the browser tests against the deployed Space
+make article                 # publish the article as its own static Space
+```
+
+`make deploy` needs a Hugging Face write token. It uploads the model package and its card to the model repository, builds the application pinned to the last commit that changed the model files, and uploads the application to the static Space. A Space holds at most 1 GB, so the models live in their own repository, and pinning to that commit means a card or image update never makes readers download the model again. The hosting checks and the problems the live tests found are recorded in [hosting.md](docs/findings/hosting.md).
+
+## Project structure
 
 ```
 sinhalalm-web/
-├── convert/          # Python build-time pipeline: conversion, export, quantization, evaluation
+├── convert/          # build-time pipeline: conversion, export, quantization, evaluation
 ├── golden/           # fixtures shared by the Python and JavaScript tests
-├── docs/             # proposal and per-topic findings
-│   └── community/    # Hugging Face article, diagrams and publishing steps
-├── deploy/           # deployment to the Hub, model, Space and dataset cards
+├── deploy/           # deployment scripts and the model, Space, dataset and article cards
+├── docs/             # project proposal and per-topic findings
+│   └── community/    # the article, its diagrams and the publishing steps
 ├── web/
 │   ├── src/text/     # ZWJ handling and HTML entity decoding
 │   ├── src/worker/   # inference worker: download, variants, generation
 │   ├── src/ui/       # React interface: Ask and Diagnostics tabs
 │   ├── src/sw/       # service worker template for offline mode
-│   ├── public/models/<model>/<version>/   # link into the model store
-│   ├── tests/        # unit tests, gate 3 and package parity
-│   └── e2e/          # Playwright browser tests, including gate 4
+│   ├── tests/        # unit tests, tokenizer and package parity
+│   └── e2e/          # Playwright browser tests
 └── Makefile          # local CI pipeline
 ```
 
-### Getting started
+## Project status
 
-The project requires `uv`, Python 3.12, Node.js 22 or later and `make`. npm 11 is pinned through `npx` in the Makefile, so the globally installed npm version does not matter.
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Project bootstrap and toolchain checks | Done |
+| 1 | Model selection, reference outputs and configuration translation | Done |
+| 2 | Tokenizer parity and ZWJ handling | Done |
+| 3 | ONNX export, quantization and the quantization quality study | Done |
+| 4 | Browser application, offline mode, Diagnostics tab and acceptance targets | Done |
+| 5 | Hosting checks and deployment to a Hugging Face static Space | Done |
+| 6 | Speed benchmarks on more devices and a native-speaker evaluation of the ZWJ handling | Planned |
 
-```bash
-make setup   # install Python and Node dependencies
-make golden  # regenerate golden outputs and tokenizer cases with the reference toolchain (transformers 5.19.0)
-make convert # gate 1: verify the export toolchain (transformers 4.57.6) against the reference
-make test-web # web unit tests, including gate 3 (tokenizer parity on 10,000 sentences)
-make onnx    # export fp32 ONNX and run gate 2 (needs about 11.5 GB of free memory)
-make quantize # build the fp16, q8 and q4 candidate variants (needs about 13 GB of free memory)
-make quality # quality gates: q4-v0-small and q8 against the author's Q4_K_M release (q8 takes about an hour)
-make package # package q4 and q8 for the web app and link them into web/public/models
-make check-package # verify the packaged model in transformers.js against Python
-make e2e     # browser tests in Chrome, including gate 4 and offline mode (about 9 minutes; downloads the model into a temporary profile)
-make rq1     # RQ1: perplexity and answer agreement of every candidate (slow; needs FLORES+ access)
-make verify  # rerun golden generation and gate 1 from scratch
-make ci      # run the local CI pipeline
-make help    # list all targets
-```
+Every feature or fix is developed on its own branch and merged into `main` only after `make ci` passes, and features visible in the browser are also tested manually before they are merged.
 
-The first `make golden` or `make ci` downloads SinhalaLLM-1.7B (about 3.5 GB) at a pinned revision and verifies the SHA-256 hash of every file. The golden outputs, gate 1, the ONNX export and gate 2 each take minutes on a CPU, so `make ci` reruns a step only when the content of its inputs changes. Content hashes of the inputs are kept in `build/stamps/`, so a checkout or merge that only changes file times reruns nothing, while `make verify` reruns golden generation and gate 1 from scratch.
+## Documentation
 
-The pipeline uses two Python environments from the same `uv` project, since the model was saved with `transformers` 5.19.0 while the ONNX exporter requires 4.57.6. `make setup` creates both: `.venv` for the export toolchain and `.venv-reference` for the reference.
+- [Project proposal](docs/sinhalalm-browser-proposal.md): the full design, requirements and acceptance targets
+- [FINDINGS.md](FINDINGS.md): a summary of every finding, with one document per topic in [docs/findings/](docs/findings/)
+- [Article](https://huggingface.co/spaces/sinsankio/sinhalalm-offline-article): the project explained for a wider audience, with worked examples and diagrams
+- [Model selection](docs/findings/model-selection.md): why the project moved from the HelaAI SinhalaLM models to SinhalaLLM-1.7B
+- [Model outputs](docs/model-outputs.md), [quantization comparison](docs/quantization-comparison.md) and [model comparison](docs/model-comparison.md): the answers behind the evaluations
+- [CHANGELOG.md](CHANGELOG.md): every change, including the attempts that were revised or rejected
 
-### Running the application
+## Credits
 
-```bash
-make dev     # development server on http://localhost:5173
-make preview # production build on http://localhost:4173
-```
-
-Offline mode needs the production build (`make preview`), since the development server does not register the service worker. On the first visit, the application asks before it downloads the model: 2.48 GB for the 8-bit model on hardware WebGPU, or 1.19 GB for the 4-bit model otherwise. The model is then kept in the browser's Cache Storage and loaded from there on later visits. The storage panel shows how much space the site uses and can delete the downloaded model, for example when the disk is nearly full.
-
-The Diagnostics tab shows the runtime, memory and storage, switches between the 8-bit model (2.48 GB, the default on WebGPU) and the 4-bit fallback (1.19 GB), runs a short benchmark and keeps a session log in the browser.
-
-The application uses WebGPU when the browser offers it on a real GPU, and the processor (WebAssembly) otherwise, which is much slower. Chrome on Linux does not enable WebGPU by default. To use the GPU there, quit Chrome completely and start it with a separate profile:
-
-```bash
-google-chrome --user-data-dir=$HOME/.sinhalalm-chrome \
-  --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan
-```
-
-These flags enable WebGPU features that Chrome has not yet approved for Linux, so use this profile only for this application.
-
-### Deployment
-
-```bash
-git tag -a v0.1.0 -m "..."  # deploy needs a version tag on the current commit
-make deploy                  # make ci, models to the model repository, application to the Space
-make e2e-live                # the browser tests against the deployed Space
-```
-
-`make deploy` needs a Hugging Face write token in `~/.cache/huggingface/token`. It uploads the model package and its card to `sinsankio/sinhalallm-1.7b-onnx-web`, builds the application pinned to the last commit that changed the model files, and uploads the application to the static Space `sinsankio/sinhalalm-offline`. A Space holds at most 1 GB, so the models cannot live in the Space itself. The hosting checks and the problems the live tests found are recorded in [hosting.md](docs/findings/hosting.md).
-
-### Model store
-
-Downloaded checkpoints, converted models and generated logits are kept in a model store outside the repository, since they are too large for the internal disk. The store defaults to `build/`, and a local `local.mk` file (not committed) can point it to another location, such as an external drive:
-
-```make
-MODEL_STORE := /media/<user>/<drive>/sinhalalm-web
-```
-
-The web application loads the packaged model through a link, `web/public/models/sinhalallm-1.7b`, which points into the model store, so the drive also needs to be mounted while the application runs locally. The store is otherwise read and written only while a pipeline target runs, so the drive needs to be mounted only for the pipeline targets, such as `make golden`, `make convert`, `make verify` and `make ci`. If the store is not available, these targets stop with a message instead of downloading the models again.
-
-### Development workflow
-
-Every feature or fix is developed on its own branch and merged into `main` only after `make ci` passes. Features that are visible in the browser are also tested manually and refined through change requests before they are merged. In other words, the CI pipeline runs locally through the Makefile rather than on a hosted CI service.
-
-### Credits
-
-SinhalaLLM-1.7B is developed by Namindu Sanchila Nadeeshan and released under the Apache-2.0 license: [namindu94/SinhalaLLM-1.7B](https://huggingface.co/namindu94/SinhalaLLM-1.7B). It is built on [SmolLM2-1.7B](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B) by Hugging Face.
-
-The model often gets facts wrong from memory, its answers are unverified, and it is not suitable for medical, legal or financial questions.
-
-The earlier stages of the project used the HelaAI SinhalaLM models ([HelaAI/SinhalaLM-V.0.0.1](https://huggingface.co/HelaAI/SinhalaLM-V.0.0.1) and [HelaAI/SinhalaLM-V.0.0.1-it](https://huggingface.co/HelaAI/SinhalaLM-V.0.0.1-it)).
+- [SinhalaLLM-1.7B](https://huggingface.co/namindu94/SinhalaLLM-1.7B) by Namindu Sanchila Nadeeshan (Apache-2.0), built on [SmolLM2-1.7B](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B) by Hugging Face. The author's Q4_K_M release served as the quality reference.
+- [FLORES+](https://huggingface.co/datasets/openlanguagedata/flores_plus) by the Open Language Data Initiative (CC BY-SA 4.0), for the quality evaluation.
+- [transformers.js](https://github.com/huggingface/transformers.js) and [Optimum](https://github.com/huggingface/optimum-onnx) by Hugging Face, and [ONNX Runtime](https://github.com/microsoft/onnxruntime) by Microsoft, for the export, quantization and browser runtime.
+- The earlier stages of the project used the HelaAI SinhalaLM models ([base](https://huggingface.co/HelaAI/SinhalaLM-V.0.0.1) and [instruct](https://huggingface.co/HelaAI/SinhalaLM-V.0.0.1-it)).
