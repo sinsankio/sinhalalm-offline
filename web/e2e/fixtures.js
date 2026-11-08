@@ -34,6 +34,8 @@ export const test = base.extend({
         baseURL: BASE_URL,
       });
       const page = context.pages()[0] ?? (await context.newPage());
+      const sign = process.env.SINHALALM_E2E_SIGN_FILE;
+      if (sign) await page.goto(`/?__sign=${readFileSync(sign, "utf8").trim()}`);
       try {
         await use({ context, page });
       } finally {
