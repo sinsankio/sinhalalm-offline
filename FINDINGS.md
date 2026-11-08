@@ -9,6 +9,7 @@ This document summarizes the research and development findings of the project in
 | [model-selection.md](docs/findings/model-selection.md) | Switch from SinhalaLM to SinhalaLLM-1.7B | SinhalaLLM-1.7B is the only screened model whose answers address the questions, and its tokenizer needs 1.76 tokens per Sinhala word. |
 | [sinhalallm-inspection.md](docs/findings/sinhalallm-inspection.md) | Inspection of the SinhalaLLM-1.7B repository | The export toolchain reads the RoPE base as 10000 instead of 130000, the tokenizer expects a ZWJ it does not add, and the browser tokenizer matches the Python one. |
 | [browser-runtime.md](docs/findings/browser-runtime.md) | Browser runtime, memory and acceptance targets | The browser build of ONNX Runtime lacks the 4-bit embedding operator, two operators stalled WebGPU until they were rewritten, WebAssembly has no fast 4-bit kernel, separate weight files cut the memory, and the targets are met on WebGPU. |
+| [hosting.md](docs/findings/hosting.md) | Hosting on a Hugging Face static Space | A Space holds at most 1 GB, so the models live in a model repository; the live tests found four problems that the local server could not show, and the fifth release candidate passes all browser tests on the Space. |
 | [rq1-quantization.md](docs/findings/rq1-quantization.md) | RQ1: quantization quality | fp16 and q8 stay within 2% of fp32, while every 4-bit variant fails; keeping the value projection of layer 0 in fp32 reduces the 4-bit loss from +164% to +33%, better than the author's own 4-bit release. |
 | [quantization.md](docs/findings/quantization.md) | fp16, q8 and q4 variants | Only q4 with an untied, quantized head and a quantized embedding fits the 1.2 GB target (1.17 GB), but a first check suggests it costs quality, while q8 is accurate but very slow on the CPU. |
 | [onnx-export.md](docs/findings/onnx-export.md) | ONNX export and parity gate 2 | The export fits the machine only as a capped trace plus a separate verify-and-finalize step, and the fp32 ONNX model reproduces every greedy answer with a relative logit difference of at most 3.46e-5. |
@@ -49,6 +50,17 @@ This document summarizes the research and development findings of the project in
 - **The acceptance targets are met.** On WebAssembly, the first token of a 52-token question takes 5.2 s and the renderer process uses 2.35 GB, while the browser measures 1.78 GB of page memory.
 - **Decisions after the targets.** The WebAssembly time-to-first-token target is dropped, since WebAssembly is the slow fallback; the 2 GB target counts the page memory measured by the browser; the ZWJ rule stays until a native speaker names words that need a visible virama; and the application warns when q8 runs on WebAssembly instead of hiding it.
 - **q8 is the default on hardware WebGPU.** The application falls back to q4 without hardware WebGPU, or when q8 cannot be downloaded, stored or loaded, and then remembers q4. A forced download failure in the browser switched to q4 and removed the partial q8 files.
+
+### Hosting
+
+- **S18: a Space holds at most 1 GB.** The upload of the application with the models failed with "Storage limit reached for this space (Max: 1 GB)", so the models live in the model repository `sinsankio/sinhalallm-1.7b-onnx-web` and the application is pinned to one of its commits.
+- **The host works for an offline application.** The `custom_headers` of the Space make the page cross-origin isolated, the service worker controls the page after the first reload, and the application reloads without a connection.
+- **S19: a private Space needs a signed address.** The browser tests read the token for it from a file, so that it never appears in a command line or a log.
+- **S20: a dropped connection looked like a full disk.** Chrome rejects `Cache.put` with the same network error in both cases, so only `QuotaExceededError` now gives the storage message, and a file is downloaded once more after a network error.
+- **S21: the Hub sends `tokenizer.json` compressed and without a size,** so the progress bar never appeared; the sizes now come from the manifest.
+- **S22: transformers.js 4.3.1 asks for `tokenizer_config.json` on `main`,** which broke offline loading; the pinned commit is now part of the remote path template.
+- **S23: a model card commit would have forced a new download,** so the application is pinned to the last commit that changed the manifest.
+- **The fifth release candidate passes all seven browser tests on the Space** in 43.1 minutes, including identical greedy answers and answers offline; the Hub served the model at about 1.1 MB/s, so the first download took 17 to 36 minutes.
 
 ### RQ1: quantization quality
 
