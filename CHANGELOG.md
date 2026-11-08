@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### fix/download-progress — No progress bar for downloads from the Hub
+
+#### Fixed
+
+- On the live Space, the model panel said "Downloading the model…" without a progress bar for the whole download. The worker read each file's size from a HEAD request, and the Hub sends `tokenizer.json` compressed, without a `Content-Length`, so the total stayed unknown. The worker now takes the sizes from `manifest.json`, which already lists them, and no longer sends the HEAD requests, which took 3 to 10 seconds from the live origin before the download started.
+
+#### Results
+
+- On the local server, the progress bar appeared 119 ms after the download started, with "0 MB of 1189 MB".
+
 ### fix/download-errors — Interrupted downloads were reported as a full disk
 
 #### Fixed

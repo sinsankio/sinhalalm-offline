@@ -96,13 +96,16 @@ function trackedResponse(response, hasher, onBytes) {
   });
 }
 
-async function expectedHashes() {
-  const response = await fetch(modelFileUrl("manifest.json", self.location.origin), {
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`Could not read the model manifest (${response.status}).`);
-  const { files } = await response.json();
-  return Object.fromEntries(Object.entries(files).map(([name, file]) => [name, file.sha256]));
+async function readManifest() {
+  try {
+    const response = await fetch(modelFileUrl("manifest.json", self.location.origin), {
+      cache: "no-store",
+    });
+    if (!response.ok) throw new DownloadStatusError("manifest.json", response.status);
+    return (await response.json()).files;
+  } catch (error) {
+    throw downloadError(error, { name: "manifest.json", needed: 0 });
+  }
 }
 
 async function removeOldVersions() {
@@ -122,21 +125,22 @@ async function download(dtype) {
   const urls = [...common, ...variantFileUrls(dtype, self.location.origin)];
   const missing = [];
   for (const url of urls) if (!(await cache.match(url))) missing.push(url);
-  const files = {};
-  for (const url of missing) {
-    const head = await fetch(url, { method: "HEAD" });
-    files[url] = { loaded: 0, total: Number(head.headers.get("content-length")) || null };
-  }
+  const base = modelFileUrl("", self.location.origin);
+  const manifest = await readManifest();
+  const files = Object.fromEntries(
+    missing.map((url) => [
+      url,
+      { loaded: 0, total: manifest[url.slice(base.length)]?.bytes ?? null },
+    ]),
+  );
   const needed = Object.values(files).reduce((sum, file) => sum + (file.total ?? 0), 0);
   const { usage = 0, quota = Infinity } = (await self.navigator.storage?.estimate?.()) ?? {};
   if (quota - usage < needed) throw new Error(storageMessage(needed, quota - usage));
-  const base = modelFileUrl("", self.location.origin);
-  let name = "manifest.json";
+  let name = null;
   try {
-    const hashes = await expectedHashes();
     for (const url of missing) {
       name = url.slice(base.length);
-      await downloadFile(cache, url, name, hashes[name], (loaded) => {
+      await downloadFile(cache, url, name, manifest[name]?.sha256, (loaded) => {
         files[url].loaded = loaded;
         post("progress", combinedProgress(files));
       });
