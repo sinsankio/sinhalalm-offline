@@ -88,7 +88,7 @@ test("deletes the model and needs a connection to download it again", async ({
   await expect(status(page)).toHaveText(/not on this device/);
   const download = page.getByRole("button", { name: /Download model/ });
   await expect(download).toBeDisabled();
-  await expect(page.locator(".status-detail")).toContainText("You are offline");
+  await expect(page.locator(".status-detail", { hasText: "You are offline" })).toBeVisible();
   expect(await page.evaluate(() => caches.keys())).not.toContain("transformers-cache");
   await context.setOffline(false);
   await expect(download).toBeEnabled();
